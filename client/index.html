@@ -15,7 +15,7 @@
     <div class="brand">heu<span>un petit monde</span></div>
     <div class="presence"><i id="connection-dot"></i><span id="status" role="status" aria-live="polite">Connexion…</span><span class="divider"></span><span id="count">0 ici</span></div>
   </header>
-  <footer class="bottom"><span id="hint">ZQSD / WASD / flèches · un monde à partager</span><div class="bottom-actions"><button id="request-open" type="button">Une idée ?</button><button id="rename" type="button" aria-label="Changer de pseudo"></button></div></footer>
+  <footer class="bottom"><span id="hint">ZQSD / WASD / flèches · Entrée pour un souhait</span><div class="bottom-actions"><button id="chat-open" type="button">Parler ↵</button><button id="rename" type="button" aria-label="Changer de pseudo"></button></div></footer>
   <div id="joystick" aria-label="Joystick de déplacement"><div id="stick"></div></div>
   <dialog id="join">
     <form id="join-form">
@@ -28,20 +28,16 @@
       <small>Sans compte. Votre pseudo reste sur ce navigateur.</small>
     </form>
   </dialog>
-  <dialog id="requests-dialog" aria-labelledby="requests-title">
-    <form id="requests-form">
-      <div class="dialog-top"><span class="eyebrow">FAISONS ÉVOLUER CE MONDE</span><button id="request-close" type="button" aria-label="Fermer">×</button></div>
-      <h1 id="requests-title">Une idée pour le jeu ?</h1>
-      <p id="request-notice" role="status" aria-live="polite">Vérification du lien avec ChatGPT…</p>
-      <label for="request-text">Ce que vous aimeriez changer</label>
-      <textarea id="request-text" rows="4" maxlength="1200" placeholder="Par exemple : ajouter un banc près de l’étang." required></textarea>
-      <button id="request-send" class="enter" type="submit" disabled>Envoyer à ChatGPT ↗</button>
-      <small>Votre pseudo et votre demande sont publics sur GitHub.<br>Votre brouillon reste enregistré sur ce navigateur.</small>
-      <div id="request-result" hidden role="status" aria-live="polite">
-        <strong id="request-state"></strong><p id="request-summary"></p><p id="request-reply"></p>
-      </div>
+  <div id="chat-composer" hidden>
+    <form id="chat-form" autocomplete="off">
+      <label class="sr-only" for="chat-text">Votre souhait pour le monde</label>
+      <input id="chat-text" maxlength="400" placeholder="Dites un souhait… Entrée pour envoyer" aria-describedby="chat-help">
+      <button type="submit" aria-label="Envoyer">↵</button>
+      <button id="chat-close" type="button" aria-label="Annuler">×</button>
     </form>
-  </dialog>
+    <span id="chat-help">Votre phrase est visible par tous et propose une modification du jeu. Échap pour fermer.</span>
+  </div>
+  <div id="chat-notice" role="status" aria-live="polite"></div>
   <script type="module" src="/game.js"></script>
 </body>
 </html>

@@ -20,6 +20,7 @@ let self:Player|undefined, socket:WebSocket|undefined, version:string|undefined;
 let attempt=0, reconnectTimer:number|undefined, terminal=false, rtt=80, reloading=false;
 let target:Point|undefined,serverVelocity:Point={x:0,y:0}, lastDirection={dx:0,dy:0};
 const keys=new Set<string>();let touch={dx:0,dy:0};
+const speeches=new Map<string,Extract<ServerMessage,{type:'speech'}>>();
 type Snapshot={at:number;players:Player[]};const snapshots:Snapshot[]=[];
 function connection(text:string,online=false){status.textContent=text;dot.classList.toggle('online',online);}
 function send(message:ClientMessage){if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(message));}
@@ -57,6 +58,7 @@ function connect(){
       }
     }
     if(message.type==='pong')rtt=Math.max(0,Math.min(400,Date.now()-message.time));
+    if(message.type==='speech')speeches.set(message.playerId,message);
     if(message.type==='error'){connection(message.message);if(message.terminal){terminal=true;stop();}}
   });
   ws.addEventListener('close',()=>{
@@ -79,7 +81,7 @@ form.addEventListener('submit',event=>{
 nickname.addEventListener('input',()=>nickname.setCustomValidity(''));
 rename.addEventListener('click',showJoin);
 const movementKeys=new Set(['z','q','s','d','w','a','arrowup','arrowdown','arrowleft','arrowright']);
-const modalOpen=()=>Boolean(document.querySelector('dialog[open]'));
+const modalOpen=()=>Boolean(document.querySelector('dialog[open]')) || !$('chat-composer').hidden;
 window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
 window.addEventListener('keyup',event=>{keys.delete(event.key.toLowerCase());});
 window.addEventListener('blur',stop);
@@ -136,7 +138,8 @@ function animate(time:number){
     const next=move(self,dx,dy,dt);self.moving=Math.hypot(next.x-self.x,next.y-self.y)>.01;
     self.direction=facing(dx,dy,self.direction);Object.assign(self,next);
   }
-  renderer.draw([...others(time),...(self?[self]:[])],self,time,dt);
+  for(const [id,speech] of speeches)if(speech.expiresAt<Date.now())speeches.delete(id);
+  renderer.draw([...others(time),...(self?[self]:[])],self,time,dt,[...speeches.values()]);
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);

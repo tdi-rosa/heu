@@ -12,6 +12,7 @@ const root = resolve('dist');
 const version = process.env.APP_VERSION || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RENDER_GIT_COMMIT || 'development';
 type Session = { socket: WebSocket; player: Player; token: string; dx: number; dy: number; lastInput: number; alive: boolean; rate: number; rateTime: number };
 const sessions = new Map<WebSocket, Session>();
+const speeches = new Map<string, Extract<ServerMessage, {type:'speech'}>>();
 // Short lived continuity across reconnects, never an account or a database.
 const remembered = new Map<string, { player: Player; expires: number }>();
 const send = (socket: WebSocket, message: ServerMessage) => {
@@ -20,6 +21,15 @@ const send = (socket: WebSocket, message: ServerMessage) => {
 const mime: Record<string,string> = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml' };
 const handleRequests = requestHandler({ token: process.env.HEU_GITHUB_TOKEN, player: token => {
   for (const session of sessions.values()) if (session.token === token) return session.player.name;
+}, announce: (token, request) => {
+  const session = [...sessions.values()].find(s => s.token === token);
+  if (!session) return;
+  const message: Extract<ServerMessage, {type:'speech'}> = {
+    type:'speech', id:request.id, playerId:session.player.id, text:request.text,
+    createdAt:Date.now(), expiresAt:Date.now()+Math.min(18000,7000+request.text.length*35)
+  };
+  speeches.set(session.player.id,message);
+  for (const client of sessions.values()) send(client.socket,message);
 } });
 const http = createServer(async (request, response) => {
   response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -78,6 +88,7 @@ wss.on('connection', socket => {
       clearTimeout(joinTimeout);
       send(socket,{type:'welcome',id:player.id,version,player});
       send(socket,{type:'world',players:[...sessions.values()].map(s => s.player)});
+      for (const speech of speeches.values()) if (speech.expiresAt>Date.now()) send(socket,speech);
       return;
     }
     if (Date.now()-session.rateTime > 1000) { session.rate=0; session.rateTime=Date.now(); }
@@ -110,6 +121,7 @@ const tick = setInterval(() => {
   }
 },1000/40);
 const heartbeat = setInterval(() => {
+  for (const [id,speech] of speeches) if (speech.expiresAt<Date.now() || ![...sessions.values()].some(s=>s.player.id===id)) speeches.delete(id);
   for (const session of sessions.values()) {
     if (!session.alive) { session.socket.terminate(); continue; }
     session.alive=false; session.socket.ping();

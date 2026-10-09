@@ -5,7 +5,7 @@ import type { GameRequest } from '../shared/requests.ts';
 
 const repo = 'tdi-rosa/heu';
 class BridgeError extends Error {}
-type Options = { token?: string; pullRequest?: number; player: (token: string) => string | undefined; transport?: typeof fetch };
+type Options = { token?: string; pullRequest?: number; player: (token: string) => string | undefined; transport?: typeof fetch; announce?: (token: string, request: GameRequest) => void };
 export function requestHandler(options: Options) {
   const transport = options.transport || fetch, pr = options.pullRequest || 1;
   const headers = { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + (options.token || ''),
@@ -94,11 +94,12 @@ export function requestHandler(options: Options) {
     for (const [key, rate] of rates) if (now - rate.start >= 3600000) rates.delete(key);
     if (now - globalStart >= 3600000) { globalStart = now; globalCount = 0; sent.clear(); }
     const rate = rates.get(token) || { start: now, count: 0 };
-    if (rate.count >= 3 || globalCount >= 15) {
+    if (rate.count >= 20 || globalCount >= 120) {
       json(response, 429, { error: 'La boîte est pleine pour le moment. Réessayez plus tard ; votre brouillon reste enregistré.' }); return true;
     }
     rate.count++; rates.set(token, rate); globalCount++;
     const record: GameRequest = { schema: 1, id, name, text, status: 'queued', reply: 'La demande attend son traitement par ChatGPT.', createdAt: new Date().toISOString() };
+    options.announce?.(token, record);
     try {
       const comment = await github(`/issues/${pr}/comments`, { method: 'POST', body: JSON.stringify({ body: requestComment(record) }) });
       if (!Number.isSafeInteger(comment.id)) throw new Error();

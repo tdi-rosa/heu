@@ -1,6 +1,7 @@
 import { WORLD, pond, trees } from '../shared/world.ts';
 import type { Player, Point, Direction } from '../shared/world.ts';
 import { characterSheets, treeSprite } from '../assets/sprites.ts';
+import type { ServerMessage } from '../shared/protocol.ts';
 const terrain=document.createElement('canvas'); terrain.width=WORLD.width;terrain.height=WORLD.height;
 const t=terrain.getContext('2d')!;
 let seed=42;
@@ -34,10 +35,11 @@ export class Renderer {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   camera: Point = {x:640,y:480};
+  speechLayouts = new Map<string,{lines:string[];width:number;height:number}>();
   width=0; height=0; dpr=1; zoom=2;
   constructor(canvas:HTMLCanvasElement){this.canvas=canvas;this.ctx=canvas.getContext('2d')!;this.resize();window.addEventListener('resize',()=>this.resize());}
   resize(){this.width=innerWidth;this.height=innerHeight;this.dpr=Math.min(devicePixelRatio||1,2);this.zoom=this.width<600?1.6:2;this.canvas.width=Math.round(this.width*this.dpr);this.canvas.height=Math.round(this.height*this.dpr);}
-  draw(players:Player[],self:Player|undefined,time:number,dt:number){
+  draw(players:Player[],self:Player|undefined,time:number,dt:number,speeches:Extract<ServerMessage,{type:'speech'}>[]=[]){
     const halfW=this.width/this.zoom/2,halfH=this.height/this.zoom/2;
     const focus=self||{x:640,y:480};
     const targetX=halfW*2>WORLD.width?WORLD.width/2:Math.max(halfW,Math.min(WORLD.width-halfW,focus.x));
@@ -67,6 +69,31 @@ export class Renderer {
         ctx.fillStyle='#3c4837';ctx.fillText(player.name,x,y-50.5);
         if(player.id===self?.id){ctx.fillStyle='#f8f9f2';ctx.fillRect(Math.round(x-1),Math.round(y-65),2,2);}
       }
+    }
+    const activeSpeechIds=new Set(speeches.map(s=>s.id));
+    for(const id of this.speechLayouts.keys())if(!activeSpeechIds.has(id))this.speechLayouts.delete(id);
+    // Speech is a final overlay so a nearby tree or player cannot hide it.
+    for(const speech of speeches){
+      const player=players.find(p=>p.id===speech.playerId);if(!player)continue;
+      const remaining=speech.expiresAt-Date.now();if(remaining<=0)continue;
+      const alpha=Math.min(1,remaining/700,(Date.now()-speech.createdAt)/180);
+      ctx.save();ctx.globalAlpha=Math.max(0,alpha);ctx.font='500 8px system-ui';ctx.textAlign='left';
+      let layout=this.speechLayouts.get(speech.id);
+      if(!layout){
+        const lines:string[]=[];let line='';
+        for(const char of speech.text.replace(/\s+/g,' ')){
+          if(ctx.measureText(line+char).width>150&&line){lines.push(line.trim());line=char;}else line+=char;
+        }
+        if(line)lines.push(line.trim());
+        const shown=lines.slice(0,12);if(lines.length>12)shown[11]=shown[11].slice(0,-1)+'…';
+        layout={lines:shown,width:Math.max(36,...shown.map(l=>ctx.measureText(l).width))+16,height:shown.length*11+14};
+        this.speechLayouts.set(speech.id,layout);
+      }
+      const {lines:shown,width,height}=layout;
+      const x=player.x-width/2,y=player.y-73-height;
+      ctx.fillStyle='#fdfdf7f5';ctx.beginPath();ctx.roundRect(x,y,width,height,7);ctx.fill();
+      ctx.beginPath();ctx.moveTo(player.x-4,y+height-1);ctx.lineTo(player.x,y+height+5);ctx.lineTo(player.x+4,y+height-1);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#363e32';shown.forEach((l,i)=>ctx.fillText(l,x+8,y+13+i*11));ctx.restore();
     }
   }
 }

@@ -39,6 +39,11 @@ test('two browsers share one world, move, disconnect and rejoin', {timeout:20000
   const alice=await join('Alice'),bob=await join('Bob');
   const both=await wait(alice.socket,m=>m.type==='world'&&m.players.length===2);
   if(both.type!=='world')throw new Error('No world');assert.deepEqual(both.players.map(p=>p.name).sort(),['Alice','Bob']);
+  assert.ok(both.players.every(p=>p.hp===50&&p.maxHp===50));
+  const slash=wait(bob.socket,m=>m.type==='attack'&&m.playerId===alice.player.id&&m.targetId===bob.player.id);
+  const damaged=wait(bob.socket,m=>m.type==='world'&&m.players.some(p=>p.id===bob.player.id&&p.hp===45));
+  alice.socket.send(JSON.stringify({type:'attack'}));await slash;await damaged;
+
   alice.socket.send(JSON.stringify({type:'input',dx:1,dy:0}));
   const movement=await wait(bob.socket,m=>m.type==='world'&&m.players.some(p=>p.id===alice.player.id&&p.x>alice.player.x+10));
   if(movement.type!=='world')throw new Error('No world');

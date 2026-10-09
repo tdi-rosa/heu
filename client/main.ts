@@ -21,6 +21,7 @@ let attempt=0, reconnectTimer:number|undefined, terminal=false, rtt=80, reloadin
 let target:Point|undefined,serverVelocity:Point={x:0,y:0}, lastDirection={dx:0,dy:0};
 const keys=new Set<string>();let touch={dx:0,dy:0};
 const speeches=new Map<string,Extract<ServerMessage,{type:'speech'}>>();
+const attacks=new Map<string,Extract<ServerMessage,{type:'attack'}>>();
 type Snapshot={at:number;players:Player[]};const snapshots:Snapshot[]=[];
 function connection(text:string,online=false){status.textContent=text;dot.classList.toggle('online',online);}
 function send(message:ClientMessage){if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(message));}
@@ -59,6 +60,7 @@ function connect(){
     }
     if(message.type==='pong')rtt=Math.max(0,Math.min(400,Date.now()-message.time));
     if(message.type==='speech')speeches.set(message.playerId,message);
+    if(message.type==='attack')attacks.set(message.id,message);
     if(message.type==='error'){connection(message.message);if(message.terminal){terminal=true;stop();}}
   });
   ws.addEventListener('close',()=>{
@@ -80,9 +82,11 @@ form.addEventListener('submit',event=>{
 });
 nickname.addEventListener('input',()=>nickname.setCustomValidity(''));
 rename.addEventListener('click',showJoin);
+function attack(){if(!modalOpen()&&!terminal)send({type:'attack'});}
+$('attack').addEventListener('click',attack);
 const movementKeys=new Set(['z','q','s','d','w','a','arrowup','arrowdown','arrowleft','arrowright']);
 const modalOpen=()=>Boolean(document.querySelector('dialog[open]')) || !$('chat-composer').hidden;
-window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
+window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(key===' '&&!event.repeat){event.preventDefault();attack();return;}if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
 window.addEventListener('keyup',event=>{keys.delete(event.key.toLowerCase());});
 window.addEventListener('blur',stop);
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stop();persist();}else{void checkVersion();if(socket?.readyState===WebSocket.CLOSED)connect();}});
@@ -139,7 +143,8 @@ function animate(time:number){
     self.direction=facing(dx,dy,self.direction);Object.assign(self,next);
   }
   for(const [id,speech] of speeches)if(speech.expiresAt<Date.now())speeches.delete(id);
-  renderer.draw([...others(time),...(self?[self]:[])],self,time,dt,[...speeches.values()]);
+  for(const [id,attack] of attacks)if(attack.expiresAt<Date.now())attacks.delete(id);
+  renderer.draw([...others(time),...(self?[self]:[])],self,time,dt,[...speeches.values()],[...attacks.values()]);
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);

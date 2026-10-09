@@ -39,7 +39,7 @@ export class Renderer {
   width=0; height=0; dpr=1; zoom=2;
   constructor(canvas:HTMLCanvasElement){this.canvas=canvas;this.ctx=canvas.getContext('2d')!;this.resize();window.addEventListener('resize',()=>this.resize());}
   resize(){this.width=innerWidth;this.height=innerHeight;this.dpr=Math.min(devicePixelRatio||1,2);this.zoom=this.width<600?1.6:2;this.canvas.width=Math.round(this.width*this.dpr);this.canvas.height=Math.round(this.height*this.dpr);}
-  draw(players:Player[],self:Player|undefined,time:number,dt:number,speeches:Extract<ServerMessage,{type:'speech'}>[]=[]){
+  draw(players:Player[],self:Player|undefined,time:number,dt:number,speeches:Extract<ServerMessage,{type:'speech'}>[]=[],attacks:Extract<ServerMessage,{type:'attack'}>[]=[]){
     const halfW=this.width/this.zoom/2,halfH=this.height/this.zoom/2;
     const focus=self||{x:640,y:480};
     const targetX=halfW*2>WORLD.width?WORLD.width/2:Math.max(halfW,Math.min(WORLD.width-halfW,focus.x));
@@ -63,10 +63,17 @@ export class Renderer {
         const row:Record<Direction,number>={down:0,left:1,right:2,up:3};
         const cycle=[1,0,1,2],frame=player.moving?cycle[Math.floor(time/145)%4]:1;
         ctx.drawImage(characterSheets[player.skin],frame*16,row[player.direction]*24,16,24,Math.round(x-16),Math.round(y-44),32,48);
+        const activeAttack=attacks.some(attack=>attack.playerId===player.id&&attack.expiresAt>Date.now());
+        const sword:Record<Direction,{x:number;y:number;dx:number;dy:number}>={down:{x:12,y:-20,dx:0,dy:13},up:{x:-12,y:-34,dx:0,dy:-13},left:{x:-13,y:-24,dx:-13,dy:0},right:{x:13,y:-24,dx:13,dy:0}};
+        const blade=sword[player.direction],stretch=activeAttack?1.65:1;
+        ctx.strokeStyle='#eef0e7';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x+blade.x,y+blade.y);ctx.lineTo(x+blade.x+blade.dx*stretch,y+blade.y+blade.dy*stretch);ctx.stroke();
+        ctx.strokeStyle='#5f4b3b';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+blade.x-blade.dy*.18,y+blade.y+blade.dx*.18);ctx.lineTo(x+blade.x+blade.dy*.18,y+blade.y-blade.dx*.18);ctx.stroke();
+
         ctx.font='500 7px system-ui';ctx.textAlign='center';
         const textWidth=ctx.measureText(player.name).width;
         ctx.fillStyle=player.id===self?.id?'#f8f9f2f2':'#f8f9f2d9';ctx.beginPath();ctx.roundRect(x-textWidth/2-5,y-59,textWidth+10,12,3);ctx.fill();
         ctx.fillStyle='#3c4837';ctx.fillText(player.name,x,y-50.5);
+        ctx.fillStyle='#542f36';ctx.fillRect(x-13,y-70,26,3);ctx.fillStyle='#8fc477';ctx.fillRect(x-13,y-70,26*player.hp/player.maxHp,3);
         if(player.id===self?.id){ctx.fillStyle='#f8f9f2';ctx.fillRect(Math.round(x-1),Math.round(y-65),2,2);}
       }
     }
@@ -95,7 +102,7 @@ export class Renderer {
         this.speechLayouts.set(speech.id,layout);
       }
       const {lines:shown,width,height}=layout;
-      const x=player.x-width/2,y=player.y-73-height;
+      const x=player.x-width/2,y=player.y-79-height;
       ctx.fillStyle='#fdfdf7f5';ctx.beginPath();ctx.roundRect(x,y,width,height,7);ctx.fill();
       ctx.beginPath();ctx.moveTo(player.x-4,y+height-1);ctx.lineTo(player.x,y+height+5);ctx.lineTo(player.x+4,y+height-1);ctx.closePath();ctx.fill();
       ctx.fillStyle='#363e32';shown.forEach((l,i)=>ctx.fillText(l,x+8,y+13+i*11));ctx.restore();

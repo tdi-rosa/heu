@@ -1,5 +1,11 @@
 # heu
 
+**Jouer : https://heu-uqsr.onrender.com/**
+
+Ouvrez cette même adresse avec vos amis. Rien à installer ni à lancer sur vos postes.
+
+![Aperçu du monde partagé](docs/preview.jpg)
+
 Un petit monde partagé, dans le navigateur. Choisissez un pseudo et retrouvez-vous sur la même carte. Aucun compte, aucun salon à créer, aucune règle de jeu.
 
 ## Pour jouer

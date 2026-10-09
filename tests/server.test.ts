@@ -80,6 +80,17 @@ test('two browsers share one world, move, disconnect and rejoin', {timeout:20000
   const summoned=wait(bob.socket,m=>m.type==='world'&&(m.rabbits||[]).filter(r=>r.ownerId===summoner.player.id).length===3);
   summoner.socket.send(JSON.stringify({type:'summon'}));await summoned;
   summoner.socket.close();await once(summoner.socket,'close');
+  const bomber=await join('Bomber',randomUUID(),{x:300,y:480});
+  const explosion=wait(bob.socket,m=>m.type==='bomb');bomber.socket.send(JSON.stringify({type:'bomb'}));
+  const blast=await explosion;if(blast.type==='bomb'){assert.equal(blast.x,300);assert.equal(blast.expiresAt-blast.createdAt,1100);}
+  const tree=wait(bob.socket,m=>m.type==='world'&&(m.ents||[]).some(e=>e.ownerId===bomber.player.id));
+  bomber.socket.send(JSON.stringify({type:'ent'}));const withEnt=await tree;
+  if(withEnt.type!=='world')throw Error('No Ent');const originalEnt=withEnt.ents!.find(e=>e.ownerId===bomber.player.id)!;
+  const movedEnt=wait(bob.socket,m=>m.type==='world'&&(m.ents||[]).some(e=>e.ownerId===bomber.player.id&&e.x>originalEnt.x+5));
+  bomber.socket.send(JSON.stringify({type:'input',dx:1,dy:0}));const worldEnt=await movedEnt;
+  if(worldEnt.type==='world')assert.equal(worldEnt.players.find(p=>p.id===bomber.player.id)!.x,300);
+  const released=wait(bob.socket,m=>m.type==='world'&&!(m.ents||[]).some(e=>e.ownerId===bomber.player.id));bomber.socket.send(JSON.stringify({type:'ent'}));await released;
+  bomber.socket.close();await once(bomber.socket,'close');
   const invisible=await join('Grabolax');assert.equal(invisible.player.invisible,true);
   assert.equal(invisible.player.flying,false);
 });

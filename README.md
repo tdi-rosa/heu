@@ -104,3 +104,7 @@ Jetpack : J ou le bouton 🚀 active un vol visuel partagé (24 pixels au-dessus
 Personnages : sprites CC0 de Fleurman / GrafxKid (Tiny Characters Set), inclus localement. Voir assets/CREDITS.md. Grabolax est invisible pour les autres ; sa silhouette reste visible pour lui-même.
 
 Lapins : L ou 🐇 invoque trois petits lapins (8 secondes, recharge 3 secondes). Ils poursuivent le joueur le plus proche, respectent les obstacles, infligent 10 dégâts au contact puis disparaissent. Aura de Grabolax : rayon 42 pixels, 10 dégâts/seconde aux autres joueurs. À 0 PV, retour au centre avec 50 PV.
+
+Bombe : B ou 💣, rayon 180 pixels, 50 dégâts aux autres joueurs, recharge 30 secondes. L’aura de Grabolax continue à infliger des dégâts mais son cercle est invisible.
+
+Ent : E ou 🌳 transforme l’arbre disponible le plus proche en Ent. Flèches/ZQSD/joystick déplacent l’Ent et la caméra le suit ; votre personnage reste sur place. E ramène le contrôle au personnage et rend l’arbre à sa place. Les Ents ne causent pas de dégâts.

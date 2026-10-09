@@ -10,20 +10,20 @@ export const trees: Point[] = [
   {x:600,y:125},{x:690,y:145},{x:1110,y:180}
 ];
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-export function blocked(x: number, y: number): boolean {
+export function blocked(x: number, y: number, obstacles: Point[] = trees): boolean {
   const r = WORLD.radius;
   if (x < 32 + r || y < 32 + r || x > WORLD.width - 32 - r || y > WORLD.height - 32 - r) return true;
   if (x > pond.x-r && x < pond.x+pond.width+r && y > pond.y-r && y < pond.y+pond.height+r) return true;
-  return trees.some(tree => Math.hypot(x-tree.x, y-tree.y) < r+12);
+  return obstacles.some(tree => Math.hypot(x-tree.x, y-tree.y) < r+12);
 }
-export function move(point: Point, dx: number, dy: number, dt: number, sprint = false): Point {
+export function move(point: Point, dx: number, dy: number, dt: number, sprint = false, obstacles:Point[] = trees): Point {
   const magnitude = Math.hypot(dx, dy);
   if (!magnitude) return { ...point };
   const scale = WORLD.speed * (sprint ? 1.7 : 1) * clamp(dt, 0, 0.05) / Math.max(1, magnitude);
   let {x,y} = point;
   const nextX = x+dx*scale, nextY = y+dy*scale;
-  if (!blocked(nextX, y)) x = nextX;
-  if (!blocked(x, nextY)) y = nextY;
+  if (!blocked(nextX, y, obstacles)) x = nextX;
+  if (!blocked(x, nextY, obstacles)) y = nextY;
   return {x,y};
 }
 export function facing(dx: number, dy: number, previous: Direction): Direction {

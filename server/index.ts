@@ -6,14 +6,15 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { move, spawn, facing } from '../shared/world.ts';
 import type { Player } from '../shared/world.ts';
 import type { ServerMessage } from '../shared/protocol.ts';
-import { advanceEffects } from '../shared/effects.ts';
-import type { Rabbit } from '../shared/effects.ts';
+import { advanceEffects, blast, summonEnt, moveEnt } from '../shared/effects.ts';
+import type { Rabbit, Ent } from '../shared/effects.ts';
 import { requestHandler } from './requests.ts';
 
 const root = resolve('dist');
 const version = process.env.APP_VERSION || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RENDER_GIT_COMMIT || 'development';
-type Session = { socket: WebSocket; player: Player; token: string; dx: number; dy: number; lastInput: number; alive: boolean; rate: number; rateTime: number; lastAttack: number; lastFire: number; lastSummon:number; sprint: boolean };
+type Session = { socket: WebSocket; player: Player; token: string; dx: number; dy: number; lastInput: number; alive: boolean; rate: number; rateTime: number; lastAttack: number; lastFire: number; lastSummon:number; lastBomb:number; sprint: boolean };
 let rabbits:Rabbit[]=[];
+let ents:Ent[]=[];
 const sessions = new Map<WebSocket, Session>();
 const speeches = new Map<string, Extract<ServerMessage, {type:'speech'}>>();
 // Short lived continuity across reconnects, never an account or a database.
@@ -86,11 +87,11 @@ wss.on('connection', socket => {
       const position = spawn(saved?.player || message.position);
       const skin = [...message.token].reduce((sum,c) => sum+c.charCodeAt(0),0)%6;
       const player: Player = { ...position,id:randomUUID(),name,skin,direction:'down',moving:false,flying:saved?.player.flying ?? false,invisible:name.toLowerCase()==='grabolax',hp:saved?.player.hp ?? 50,maxHp:50 };
-      sessions.set(socket,{socket,player,token:message.token,dx:0,dy:0,lastInput:Date.now(),alive:true,rate:0,rateTime:Date.now(),lastAttack:0,lastFire:0,lastSummon:0,sprint:false});
+      sessions.set(socket,{socket,player,token:message.token,dx:0,dy:0,lastInput:Date.now(),alive:true,rate:0,rateTime:Date.now(),lastAttack:0,lastFire:0,lastSummon:0,lastBomb:0,sprint:false});
       remembered.delete(message.token);
       clearTimeout(joinTimeout);
       send(socket,{type:'welcome',id:player.id,version,player});
-      send(socket,{type:'world',players:[...sessions.values()].map(s => s.player),rabbits});
+      send(socket,{type:'world',players:[...sessions.values()].map(s => s.player),rabbits,ents});
       for (const speech of speeches.values()) if (speech.expiresAt>Date.now()) send(socket,speech);
       return;
     }
@@ -99,6 +100,16 @@ wss.on('connection', socket => {
     if (message.type === 'input' && Number.isFinite(message.dx) && Number.isFinite(message.dy)) {
       session.dx = Math.max(-1,Math.min(1,message.dx)); session.dy = Math.max(-1,Math.min(1,message.dy));
       session.lastInput = Date.now(); session.sprint=message.sprint===true;
+    }
+    if(message.type==='ent'){
+      if(ents.some(e=>e.ownerId===session.player.id))ents=ents.filter(e=>e.ownerId!==session.player.id);
+      else{const ent=summonEnt(session.player,ents);if(ent)ents.push(ent);}
+    }
+    if(message.type==='bomb'&&Date.now()-session.lastBomb>=30000){
+      session.lastBomb=Date.now();const {x,y}=session.player;
+      blast([...sessions.values()].map(s=>s.player),session.player);
+      const event:ServerMessage={type:'bomb',id:randomUUID(),x,y,createdAt:Date.now(),expiresAt:Date.now()+1100};
+      for(const client of sessions.values())send(client.socket,event);
     }
     if(message.type==='summon'&&Date.now()-session.lastSummon>=3000){
       session.lastSummon=Date.now();
@@ -139,14 +150,17 @@ const tick = setInterval(() => {
   const now = performance.now(), dt = Math.min((now-previous)/1000,0.05); previous=now;
   for (const session of sessions.values()) {
     if (Date.now()-session.lastInput > 500) { session.dx=0; session.dy=0; session.sprint=false; }
+    const ent=ents.find(e=>e.ownerId===session.player.id);
+    if(ent){moveEnt(ent,session.dx,session.dy,dt);session.player.moving=false;continue;}
     const point = move(session.player,session.dx,session.dy,dt,session.sprint);
     session.player.moving = Math.hypot(point.x-session.player.x,point.y-session.player.y)>0.01;
     session.player.direction = facing(session.dx,session.dy,session.player.direction);
     Object.assign(session.player,point);
   }
+  ents=ents.filter(e=>[...sessions.values()].some(s=>s.player.id===e.ownerId));
   rabbits=advanceEffects([...sessions.values()].map(s=>s.player),rabbits,dt,Date.now());
   if (++step%2 === 0) {
-    const message: ServerMessage = {type:'world',players:[...sessions.values()].map(s => s.player),rabbits};
+    const message: ServerMessage = {type:'world',players:[...sessions.values()].map(s => s.player),rabbits,ents};
     for (const session of sessions.values()) send(session.socket,message);
   }
 },1000/40);

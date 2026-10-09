@@ -1,5 +1,5 @@
-import { AURA_RADIUS } from '../shared/effects.ts';
-import type { Rabbit } from '../shared/effects.ts';
+import { BOMB_RADIUS } from '../shared/effects.ts';
+import type { Rabbit, Ent } from '../shared/effects.ts';
 import { WORLD, pond, trees } from '../shared/world.ts';
 import type { Player, Point, Direction } from '../shared/world.ts';
 import { characterSheets, treeSprite } from '../assets/sprites.ts';
@@ -41,9 +41,9 @@ export class Renderer {
   width=0; height=0; dpr=1; zoom=2;
   constructor(canvas:HTMLCanvasElement){this.canvas=canvas;this.ctx=canvas.getContext('2d')!;this.resize();window.addEventListener('resize',()=>this.resize());}
   resize(){this.width=innerWidth;this.height=innerHeight;this.dpr=Math.min(devicePixelRatio||1,2);this.zoom=this.width<600?1.6:2;this.canvas.width=Math.round(this.width*this.dpr);this.canvas.height=Math.round(this.height*this.dpr);}
-  draw(players:Player[],self:Player|undefined,time:number,dt:number,speeches:Extract<ServerMessage,{type:'speech'}>[]=[],attacks:Extract<ServerMessage,{type:'attack'}>[]=[],flames:Extract<ServerMessage,{type:'fire'}>[]=[] ,rabbits:Rabbit[]=[]){
+  draw(players:Player[],self:Player|undefined,time:number,dt:number,speeches:Extract<ServerMessage,{type:'speech'}>[]=[],attacks:Extract<ServerMessage,{type:'attack'}>[]=[],flames:Extract<ServerMessage,{type:'fire'}>[]=[] ,rabbits:Rabbit[]=[],bombs:Extract<ServerMessage,{type:'bomb'}>[]=[],ents:Ent[]=[]){
     const halfW=this.width/this.zoom/2,halfH=this.height/this.zoom/2;
-    const focus=self||{x:640,y:480};
+    const focus=ents.find(e=>e.ownerId===self?.id)||self||{x:640,y:480};
     const targetX=halfW*2>WORLD.width?WORLD.width/2:Math.max(halfW,Math.min(WORLD.width-halfW,focus.x));
     const targetY=halfH*2>WORLD.height?WORLD.height/2:Math.max(halfH,Math.min(WORLD.height-halfH,focus.y));
     const ease=1-Math.exp(-dt*7);
@@ -55,7 +55,6 @@ export class Renderer {
     ctx.drawImage(terrain,0,0);
     ctx.fillStyle='#c0d8d0';
     for(let i=0;i<7;i++){const x=pond.x+30+(i*43)%170,y=pond.y+22+(i*29)%110;ctx.globalAlpha=.3+.2*Math.sin(time/1300+i);ctx.fillRect(x,y,9,1);}ctx.globalAlpha=1;
-    for(const p of players)if(p.name.toLowerCase()==='grabolax'){ctx.fillStyle='#9f69c01c';ctx.strokeStyle='#d5a9f099';ctx.lineWidth=1;ctx.beginPath();ctx.arc(p.x,p.y,AURA_RADIUS,0,Math.PI*2);ctx.fill();ctx.stroke();}
     for(const rabbit of rabbits){
       const x=Math.round(rabbit.x),y=Math.round(rabbit.y-Math.abs(Math.sin(time/95))*4);
       ctx.fillStyle='#50624635';ctx.beginPath();ctx.ellipse(x,rabbit.y+3,6,2,0,0,Math.PI*2);ctx.fill();
@@ -63,7 +62,7 @@ export class Renderer {
       ctx.fillStyle='#e4acb3';ctx.fillRect(x-3,y-13,1,5);ctx.fillRect(x+2,y-13,1,5);
       ctx.fillStyle='#40343e';ctx.fillRect(x-3,y-5,1,1);ctx.fillRect(x+2,y-5,1,1);ctx.fillStyle='#e4acb3';ctx.fillRect(x-1,y-3,2,1);
     }
-    const objects=[...trees.map(point=>({kind:'tree' as const,point})),...players.map(player=>({kind:'player' as const,point:player}))].sort((a,b)=>a.point.y-b.point.y);
+    const objects=[...trees.filter((_,i)=>!ents.some(e=>e.treeIndex===i)).map(point=>({kind:'tree' as const,point})),...players.map(player=>({kind:'player' as const,point:player}))].sort((a,b)=>a.point.y-b.point.y);
     for(const object of objects){
       let {x,y}=object.point;
       if(object.kind==='tree'){ctx.fillStyle='#728e5c50';ctx.beginPath();ctx.ellipse(x+4,y+3,24,7,0,0,Math.PI*2);ctx.fill();ctx.drawImage(treeSprite,Math.round(x-32),Math.round(y-86),64,96);}
@@ -115,6 +114,21 @@ export class Renderer {
         if(i%3===0){ctx.fillStyle='#fff4bb';ctx.fillRect(Math.round(distance),Math.round(spread),size*.5,size*.5);}
       }
       ctx.restore();
+    }
+    for(const bomb of bombs){
+      const age=Date.now()-bomb.createdAt,progress=Math.max(0,Math.min(1,age/1100));
+      ctx.save();ctx.globalAlpha=(1-progress)*.65;ctx.fillStyle='#ffc45b';ctx.strokeStyle='#fff4c7';ctx.lineWidth=5;ctx.beginPath();ctx.arc(bomb.x,bomb.y,Math.max(2,BOMB_RADIUS*progress),0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.globalAlpha=Math.max(0,1-age/220);ctx.fillStyle='#fff4da';ctx.beginPath();ctx.arc(bomb.x,bomb.y,BOMB_RADIUS,0,Math.PI*2);ctx.fill();ctx.restore();
+    }
+    for(const ent of ents){
+      const root=trees[ent.treeIndex];ctx.fillStyle='#87674c';ctx.fillRect(root.x-7,root.y-3,14,8);ctx.fillStyle='#c4a17b';ctx.fillRect(root.x-5,root.y-3,10,3);
+      const bob=ent.moving?Math.abs(Math.sin(time/130))*3:0,x=Math.round(ent.x),y=Math.round(ent.y-bob);
+      ctx.fillStyle='#50624635';ctx.beginPath();ctx.ellipse(x,ent.y+4,25,7,0,0,Math.PI*2);ctx.fill();
+      ctx.drawImage(treeSprite,x-32,y-86,64,96);
+      ctx.fillStyle='#e7d6a6';ctx.fillRect(x-12,y-36,7,5);ctx.fillRect(x+5,y-36,7,5);
+      ctx.fillStyle='#333d2b';ctx.fillRect(x-8,y-36,2,5);ctx.fillRect(x+7,y-36,2,5);ctx.fillRect(x-6,y-24,12,3);
+      ctx.fillStyle='#765438';ctx.fillRect(x-15,y+2,11,5);ctx.fillRect(x+4,y+2,11,5);
+      if(ent.ownerId===self?.id){ctx.font='500 7px system-ui';ctx.textAlign='center';ctx.fillStyle='#f8f9f2';ctx.fillText('Ent · E pour revenir',x,y-93);}
     }
     const activeSpeechIds=new Set(speeches.map(s=>s.id));
     for(const id of this.speechLayouts.keys())if(!activeSpeechIds.has(id))this.speechLayouts.delete(id);

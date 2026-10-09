@@ -23,7 +23,9 @@ let sprintToggle=false;
 const keys=new Set<string>();let touch={dx:0,dy:0};
 const speeches=new Map<string,Extract<ServerMessage,{type:'speech'}>>();
 let rabbits:import('../shared/effects.ts').Rabbit[]=[];
+let ents:import('../shared/effects.ts').Ent[]=[];
 const flames=new Map<string,Extract<ServerMessage,{type:'fire'}>>();
+const bombs=new Map<string,Extract<ServerMessage,{type:'bomb'}>>();
 const attacks=new Map<string,Extract<ServerMessage,{type:'attack'}>>();
 type Snapshot={at:number;players:Player[]};const snapshots:Snapshot[]=[];
 function connection(text:string,online=false){status.textContent=text;dot.classList.toggle('online',online);}
@@ -51,13 +53,15 @@ function connect(){
       send({type:'ping',time:Date.now()});
     }
     if(message.type==='world'){
-      rabbits=message.rabbits||[];
+      rabbits=message.rabbits||[];ents=message.ents||[];
+      $('ent').setAttribute('aria-pressed',String(ents.some(e=>e.ownerId===self?.id)));
       const at=performance.now();snapshots.push({at,players:message.players});while(snapshots.length>20)snapshots.shift();
       count.textContent=message.players.length+' ici';
       const own=message.players.find(player=>player.id===self?.id);
       if(own && self){
         self.hp=own.hp;self.maxHp=own.maxHp;self.flying=own.flying;self.invisible=own.invisible;
         $('jetpack').setAttribute('aria-pressed',String(own.flying));
+        if(ents.some(e=>e.ownerId===own.id)){self.x=own.x;self.y=own.y;self.moving=false;}
         target={x:own.x,y:own.y};
         const sample=snapshots.at(-2)?.players.find(player=>player.id===own.id);
         const sampleDt=at-(snapshots.at(-2)?.at||at);
@@ -67,6 +71,7 @@ function connect(){
     if(message.type==='pong')rtt=Math.max(0,Math.min(400,Date.now()-message.time));
     if(message.type==='speech')speeches.set(message.playerId,message);
     if(message.type==='attack')attacks.set(message.id,message);
+    if(message.type==='bomb')bombs.set(message.id,message);
     if(message.type==='fire')flames.set(message.id,message);
     if(message.type==='error'){connection(message.message);if(message.terminal){terminal=true;stop();}}
   });
@@ -97,10 +102,15 @@ function jetpack(){if(self&&!modalOpen()&&!terminal){self.flying=!self.flying;se
 $('jetpack').addEventListener('click',jetpack);
 function summon(){if(!modalOpen()&&!terminal)send({type:'summon'});}
 $('summon').addEventListener('click',summon);
+let bombReadyAt=0;
+function bomb(){if(!modalOpen()&&!terminal&&Date.now()>=bombReadyAt){bombReadyAt=Date.now()+30000;send({type:'bomb'});const button=$('bomb') as HTMLButtonElement;button.disabled=true;setTimeout(()=>{button.disabled=false;},30000);}}
+$('bomb').addEventListener('click',bomb);
+function ent(){if(!modalOpen()&&!terminal)send({type:'ent'});}
+$('ent').addEventListener('click',ent);
 $('sprint').addEventListener('click',()=>{sprintToggle=!sprintToggle;$('sprint').setAttribute('aria-pressed',String(sprintToggle));});
 const movementKeys=new Set(['shift','z','q','s','d','w','a','arrowup','arrowdown','arrowleft','arrowright']);
 const modalOpen=()=>Boolean(document.querySelector('dialog[open]')) || !$('chat-composer').hidden;
-window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(key==='l'&&!event.repeat){event.preventDefault();summon();return;}if(key==='j'&&!event.repeat){event.preventDefault();jetpack();return;}if(key==='f'&&!event.repeat){event.preventDefault();breatheFire();return;}if(key===' '&&!event.repeat){event.preventDefault();attack();return;}if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
+window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(key==='e'&&!event.repeat){event.preventDefault();ent();return;}if(key==='b'&&!event.repeat){event.preventDefault();bomb();return;}if(key==='l'&&!event.repeat){event.preventDefault();summon();return;}if(key==='j'&&!event.repeat){event.preventDefault();jetpack();return;}if(key==='f'&&!event.repeat){event.preventDefault();breatheFire();return;}if(key===' '&&!event.repeat){event.preventDefault();attack();return;}if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
 window.addEventListener('keyup',event=>{keys.delete(event.key.toLowerCase());});
 window.addEventListener('blur',stop);
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stop();persist();}else{void checkVersion();if(socket?.readyState===WebSocket.CLOSED)connect();}});
@@ -144,7 +154,7 @@ function others(time:number):Player[]{
 let last=performance.now();
 function animate(time:number){
   const dt=Math.min((time-last)/1000,.05);last=time;
-  if(self&&socket?.readyState===WebSocket.OPEN&&!terminal){
+  if(self&&socket?.readyState===WebSocket.OPEN&&!terminal&&!ents.some(e=>e.ownerId===self?.id)){
     const controls=input();const magnitude=Math.hypot(controls.dx,controls.dy);
     const dx=controls.dx/Math.max(1,magnitude),dy=controls.dy/Math.max(1,magnitude);
     if(target){
@@ -159,8 +169,9 @@ function animate(time:number){
   }
   for(const [id,speech] of speeches)if(speech.expiresAt<Date.now())speeches.delete(id);
   for(const [id,attack] of attacks)if(attack.expiresAt<Date.now())attacks.delete(id);
+  for(const [id,bomb] of bombs)if(bomb.expiresAt<Date.now())bombs.delete(id);
   for(const [id,flame] of flames)if(flame.expiresAt<Date.now())flames.delete(id);
-  renderer.draw([...others(time),...(self?[self]:[])],self,time,dt,[...speeches.values()],[...attacks.values()],[...flames.values()],rabbits);
+  renderer.draw([...others(time),...(self?[self]:[])],self,time,dt,[...speeches.values()],[...attacks.values()],[...flames.values()],rabbits,[...bombs.values()],ents);
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);

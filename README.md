@@ -72,6 +72,10 @@ Cette version permet de rejoindre, choisir un pseudo, se déplacer, voir les aut
 
 ## Demandes de mises à jour
 
+F (ou « 🔥 Feu » sur mobile) fait cracher un souffle de feu animé, visible par tous. Ce souffle est visuel et peut être lancé toutes les 1,2 secondes.
+
+Maj (ou le bouton Sprint sur mobile) permet de courir 70 % plus vite. L’épée décrit un arc de cercle lors de l’attaque.
+
 Chaque joueur possède une épée et 50 PV. Espace (ou « ⚔ Attaquer ») frappe à courte portée dans la direction regardée et retire 5 PV. À 0 PV, le personnage réapparaît au centre avec 50 PV.
 
 Entrée (ou « Parler ↵ » sur mobile) ouvre une ligne de saisie. Entrée envoie le souhait, Échap ferme la ligne. Une bulle au-dessus du personnage est diffusée à tous immédiatement, pendant 7 à 18 secondes selon la longueur du texte. Chaque phrase propose aussi une modification du jeu. Le brouillon et les six dernières demandes sont conservés localement ; leur statut est consulté toutes les 5 secondes. Le serveur utilise le pseudo de la session active, transmet un commentaire à [la PR de réception](https://github.com/tdi-rosa/heu/pull/1). Les commentaires persistent sur GitHub, indépendamment des redémarrages Render. Les demandes et pseudos sont publics.

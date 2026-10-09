@@ -40,6 +40,12 @@ test('two browsers share one world, move, disconnect and rejoin', {timeout:20000
   const both=await wait(alice.socket,m=>m.type==='world'&&m.players.length===2);
   if(both.type!=='world')throw new Error('No world');assert.deepEqual(both.players.map(p=>p.name).sort(),['Alice','Bob']);
   assert.ok(both.players.every(p=>p.hp===50&&p.maxHp===50));
+  const fire=wait(bob.socket,m=>m.type==='fire'&&m.playerId===alice.player.id);
+  alice.socket.send(JSON.stringify({type:'fire'}));
+  const flame=await fire;if(flame.type!=='fire')throw new Error('No flame');
+  assert.equal(flame.direction,'down');assert.equal(flame.expiresAt-flame.createdAt,800);
+  assert.equal(flame.x,alice.player.x);assert.equal(flame.y,alice.player.y);
+
   const slash=wait(bob.socket,m=>m.type==='attack'&&m.playerId===alice.player.id&&m.targetId===bob.player.id);
   const damaged=wait(bob.socket,m=>m.type==='world'&&m.players.some(p=>p.id===bob.player.id&&p.hp===45));
   alice.socket.send(JSON.stringify({type:'attack'}));await slash;await damaged;

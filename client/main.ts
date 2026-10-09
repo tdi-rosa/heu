@@ -19,8 +19,10 @@ try{const saved=storage.get('position');if(saved)savedPosition=JSON.parse(saved)
 let self:Player|undefined, socket:WebSocket|undefined, version:string|undefined;
 let attempt=0, reconnectTimer:number|undefined, terminal=false, rtt=80, reloading=false;
 let target:Point|undefined,serverVelocity:Point={x:0,y:0}, lastDirection={dx:0,dy:0};
+let sprintToggle=false;
 const keys=new Set<string>();let touch={dx:0,dy:0};
 const speeches=new Map<string,Extract<ServerMessage,{type:'speech'}>>();
+const flames=new Map<string,Extract<ServerMessage,{type:'fire'}>>();
 const attacks=new Map<string,Extract<ServerMessage,{type:'attack'}>>();
 type Snapshot={at:number;players:Player[]};const snapshots:Snapshot[]=[];
 function connection(text:string,online=false){status.textContent=text;dot.classList.toggle('online',online);}
@@ -61,6 +63,7 @@ function connect(){
     if(message.type==='pong')rtt=Math.max(0,Math.min(400,Date.now()-message.time));
     if(message.type==='speech')speeches.set(message.playerId,message);
     if(message.type==='attack')attacks.set(message.id,message);
+    if(message.type==='fire')flames.set(message.id,message);
     if(message.type==='error'){connection(message.message);if(message.terminal){terminal=true;stop();}}
   });
   ws.addEventListener('close',()=>{
@@ -84,9 +87,12 @@ nickname.addEventListener('input',()=>nickname.setCustomValidity(''));
 rename.addEventListener('click',showJoin);
 function attack(){if(!modalOpen()&&!terminal)send({type:'attack'});}
 $('attack').addEventListener('click',attack);
-const movementKeys=new Set(['z','q','s','d','w','a','arrowup','arrowdown','arrowleft','arrowright']);
+function breatheFire(){if(!modalOpen()&&!terminal)send({type:'fire'});}
+$('fire').addEventListener('click',breatheFire);
+$('sprint').addEventListener('click',()=>{sprintToggle=!sprintToggle;$('sprint').setAttribute('aria-pressed',String(sprintToggle));});
+const movementKeys=new Set(['shift','z','q','s','d','w','a','arrowup','arrowdown','arrowleft','arrowright']);
 const modalOpen=()=>Boolean(document.querySelector('dialog[open]')) || !$('chat-composer').hidden;
-window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(key===' '&&!event.repeat){event.preventDefault();attack();return;}if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
+window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(key==='f'&&!event.repeat){event.preventDefault();breatheFire();return;}if(key===' '&&!event.repeat){event.preventDefault();attack();return;}if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
 window.addEventListener('keyup',event=>{keys.delete(event.key.toLowerCase());});
 window.addEventListener('blur',stop);
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stop();persist();}else{void checkVersion();if(socket?.readyState===WebSocket.CLOSED)connect();}});
@@ -97,11 +103,12 @@ joystick.addEventListener('pointermove',event=>{if(event.pointerId===pointerId)u
 function updateStick(event:PointerEvent){const bounds=joystick.getBoundingClientRect();let x=event.clientX-bounds.left-bounds.width/2,y=event.clientY-bounds.top-bounds.height/2;const length=Math.hypot(x,y);if(length>36){x=x/length*36;y=y/length*36;}stick.style.transform=`translate(${x}px,${y}px)`;touch={dx:Math.abs(x)<5?0:x/36,dy:Math.abs(y)<5?0:y/36};}
 function releaseStick(event:PointerEvent){if(event.pointerId!==pointerId)return;pointerId=undefined;stick.style.transform='';touch={dx:0,dy:0};}
 joystick.addEventListener('pointerup',releaseStick);joystick.addEventListener('pointercancel',releaseStick);joystick.addEventListener('lostpointercapture',releaseStick);
-function input(){if(modalOpen()||document.hidden||terminal)return {dx:0,dy:0};return {
+function input(){if(modalOpen()||document.hidden||terminal)return {dx:0,dy:0,sprint:false};return {
+  sprint:keys.has('shift')||sprintToggle,
   dx:touch.dx+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('q')||keys.has('a')||keys.has('arrowleft')?1:0),
   dy:touch.dy+(keys.has('s')||keys.has('arrowdown')?1:0)-(keys.has('z')||keys.has('w')||keys.has('arrowup')?1:0)
 };}
-setInterval(()=>{if(self&&socket?.readyState===WebSocket.OPEN){const {dx,dy}=input();lastDirection={dx:Math.max(-1,Math.min(1,dx)),dy:Math.max(-1,Math.min(1,dy))};send({type:'input',...lastDirection});}},33);
+setInterval(()=>{if(self&&socket?.readyState===WebSocket.OPEN){const {dx,dy,sprint}=input();lastDirection={dx:Math.max(-1,Math.min(1,dx)),dy:Math.max(-1,Math.min(1,dy))};send({type:'input',...lastDirection,sprint});}},33);
 setInterval(()=>{persist();if(socket?.readyState===WebSocket.OPEN)send({type:'ping',time:Date.now()});},2000);
 let candidateVersion:string|undefined;
 async function checkVersion(){
@@ -139,12 +146,13 @@ function animate(time:number){
       if(error>100)Object.assign(self,spawn(estimated));
       else if(error>1.5){const factor=1-Math.exp(-dt*(magnitude?3:12));Object.assign(self,spawn({x:self.x+(estimated.x-self.x)*factor,y:self.y+(estimated.y-self.y)*factor}));}
     }
-    const next=move(self,dx,dy,dt);self.moving=Math.hypot(next.x-self.x,next.y-self.y)>.01;
+    const next=move(self,dx,dy,dt,controls.sprint);self.moving=Math.hypot(next.x-self.x,next.y-self.y)>.01;
     self.direction=facing(dx,dy,self.direction);Object.assign(self,next);
   }
   for(const [id,speech] of speeches)if(speech.expiresAt<Date.now())speeches.delete(id);
   for(const [id,attack] of attacks)if(attack.expiresAt<Date.now())attacks.delete(id);
-  renderer.draw([...others(time),...(self?[self]:[])],self,time,dt,[...speeches.values()],[...attacks.values()]);
+  for(const [id,flame] of flames)if(flame.expiresAt<Date.now())flames.delete(id);
+  renderer.draw([...others(time),...(self?[self]:[])],self,time,dt,[...speeches.values()],[...attacks.values()],[...flames.values()]);
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);

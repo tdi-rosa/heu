@@ -21,3 +21,5 @@ test('long pauses do not cause a teleport and idle keeps direction',()=>{
   assert.equal(move({x:500,y:500},1,0,10).x,507.5);
   assert.equal(facing(0,0,'left'),'left');
 });
+
+test("sprint is 70 percent faster and respects obstacles",()=>{const p={x:640,y:480};assert.equal(move(p,1,0,.05,true).x-p.x,(move(p,1,0,.05).x-p.x)*1.7);assert.equal(move({x:39,y:39},-1,0,.05,true).x,39);});

@@ -16,10 +16,10 @@ export function blocked(x: number, y: number): boolean {
   if (x > pond.x-r && x < pond.x+pond.width+r && y > pond.y-r && y < pond.y+pond.height+r) return true;
   return trees.some(tree => Math.hypot(x-tree.x, y-tree.y) < r+12);
 }
-export function move(point: Point, dx: number, dy: number, dt: number): Point {
+export function move(point: Point, dx: number, dy: number, dt: number, sprint = false): Point {
   const magnitude = Math.hypot(dx, dy);
   if (!magnitude) return { ...point };
-  const scale = WORLD.speed * clamp(dt, 0, 0.05) / Math.max(1, magnitude);
+  const scale = WORLD.speed * (sprint ? 1.7 : 1) * clamp(dt, 0, 0.05) / Math.max(1, magnitude);
   let {x,y} = point;
   const nextX = x+dx*scale, nextY = y+dy*scale;
   if (!blocked(nextX, y)) x = nextX;

@@ -10,7 +10,7 @@ import { requestHandler } from './requests.ts';
 
 const root = resolve('dist');
 const version = process.env.APP_VERSION || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RENDER_GIT_COMMIT || 'development';
-type Session = { socket: WebSocket; player: Player; token: string; dx: number; dy: number; lastInput: number; alive: boolean; rate: number; rateTime: number; lastAttack: number };
+type Session = { socket: WebSocket; player: Player; token: string; dx: number; dy: number; lastInput: number; alive: boolean; rate: number; rateTime: number; lastAttack: number; lastFire: number; sprint: boolean };
 const sessions = new Map<WebSocket, Session>();
 const speeches = new Map<string, Extract<ServerMessage, {type:'speech'}>>();
 // Short lived continuity across reconnects, never an account or a database.
@@ -83,7 +83,7 @@ wss.on('connection', socket => {
       const position = spawn(saved?.player || message.position);
       const skin = [...message.token].reduce((sum,c) => sum+c.charCodeAt(0),0)%6;
       const player: Player = { ...position,id:randomUUID(),name,skin,direction:'down',moving:false,hp:saved?.player.hp ?? 50,maxHp:50 };
-      sessions.set(socket,{socket,player,token:message.token,dx:0,dy:0,lastInput:Date.now(),alive:true,rate:0,rateTime:Date.now(),lastAttack:0});
+      sessions.set(socket,{socket,player,token:message.token,dx:0,dy:0,lastInput:Date.now(),alive:true,rate:0,rateTime:Date.now(),lastAttack:0,lastFire:0,sprint:false});
       remembered.delete(message.token);
       clearTimeout(joinTimeout);
       send(socket,{type:'welcome',id:player.id,version,player});
@@ -95,7 +95,13 @@ wss.on('connection', socket => {
     if (++session.rate > 100) { socket.close(1008,'Trop de messages'); return; }
     if (message.type === 'input' && Number.isFinite(message.dx) && Number.isFinite(message.dy)) {
       session.dx = Math.max(-1,Math.min(1,message.dx)); session.dy = Math.max(-1,Math.min(1,message.dy));
-      session.lastInput = Date.now();
+      session.lastInput = Date.now(); session.sprint=message.sprint===true;
+    }
+    if (message.type === 'fire' && Date.now()-session.lastFire >= 1200) {
+      session.lastFire=Date.now();
+      const {x,y,direction}=session.player;
+      const event:ServerMessage={type:'fire',id:randomUUID(),playerId:session.player.id,x,y,direction,createdAt:Date.now(),expiresAt:Date.now()+800};
+      for(const client of sessions.values())send(client.socket,event);
     }
     if (message.type === 'attack' && Date.now()-session.lastAttack >= 500) {
       session.lastAttack=Date.now();
@@ -123,8 +129,8 @@ let previous = performance.now(), step = 0;
 const tick = setInterval(() => {
   const now = performance.now(), dt = Math.min((now-previous)/1000,0.05); previous=now;
   for (const session of sessions.values()) {
-    if (Date.now()-session.lastInput > 500) { session.dx=0; session.dy=0; }
-    const point = move(session.player,session.dx,session.dy,dt);
+    if (Date.now()-session.lastInput > 500) { session.dx=0; session.dy=0; session.sprint=false; }
+    const point = move(session.player,session.dx,session.dy,dt,session.sprint);
     session.player.moving = Math.hypot(point.x-session.player.x,point.y-session.player.y)>0.01;
     session.player.direction = facing(session.dx,session.dy,session.player.direction);
     Object.assign(session.player,point);

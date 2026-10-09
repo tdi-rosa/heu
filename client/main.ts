@@ -1,4 +1,5 @@
 import { Renderer } from './render.ts';
+import { newToken } from '../shared/identity.ts';
 import { move, facing, spawn, WORLD } from '../shared/world.ts';
 import type { Player, Point } from '../shared/world.ts';
 import type { ClientMessage, ServerMessage } from '../shared/protocol.ts';
@@ -11,7 +12,7 @@ const storage={
   get(key:string){try{return localStorage.getItem('heu.'+key);}catch{return null;}},
   set(key:string,value:string){try{localStorage.setItem('heu.'+key,value);}catch{/* The game remains usable when storage is disabled. */}}
 };
-let name=storage.get('name')||'',token=storage.get('token')||crypto.randomUUID();storage.set('token',token);
+let name=storage.get('name')||'',token=storage.get('token')||newToken();storage.set('token',token);
 let savedPosition:Point|undefined;
 try{const saved=storage.get('position');if(saved)savedPosition=JSON.parse(saved);}catch{}
 let self:Player|undefined, socket:WebSocket|undefined, version:string|undefined;

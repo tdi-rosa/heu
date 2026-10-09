@@ -25,7 +25,17 @@ scripts/    préparation des fichiers servis
 tests/      déplacements et session multijoueur réelle
 ```
 
-## Déploiement Railway
+## Déploiement gratuit sur Render
+
+[Déployer heu sur Render](https://render.com/deploy?repo=https://github.com/tdi-rosa/heu)
+
+Le fichier `render.yaml` prépare un unique service **Free**, en Europe, connecté à `main`. Aucune variable secrète, base de données ou installation sur les postes des joueurs. Une fois le service lancé, partager son adresse HTTPS avec les amis.
+
+Chaque commit sur `main` déclenche automatiquement le build et le déploiement. Le client utilise le SHA de la version Render pour recharger les pages après une mise à jour, tout en gardant le pseudo et la dernière position dans le navigateur.
+
+Le service gratuit s'endort après 15 minutes sans trafic entrant. Son réveil prend environ une minute. Les messages WebSocket des joueurs le maintiennent actif pendant la partie. Les quotas gratuits de Render s'appliquent ; ne sélectionner aucune offre payante.
+
+## Déploiement Railway (alternative)
 
 Créer un service depuis le dépôt `tdi-rosa/heu`, branche `main`, puis générer un domaine public. `railway.toml` configure le build, le démarrage et `/health`. Node 24 est défini dans `package.json`. Le port est fourni par Railway. Aucune clé ni variable secrète n'est nécessaire.
 

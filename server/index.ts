@@ -8,7 +8,7 @@ import type { Player } from '../shared/world.ts';
 import type { ServerMessage } from '../shared/protocol.ts';
 
 const root = resolve('dist');
-const version = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.APP_VERSION || 'development';
+const version = process.env.APP_VERSION || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RENDER_GIT_COMMIT || 'development';
 type Session = { socket: WebSocket; player: Player; token: string; dx: number; dy: number; lastInput: number; alive: boolean; rate: number; rateTime: number };
 const sessions = new Map<WebSocket, Session>();
 // Short lived continuity across reconnects, never an account or a database.

@@ -6,11 +6,14 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { move, spawn, facing } from '../shared/world.ts';
 import type { Player } from '../shared/world.ts';
 import type { ServerMessage } from '../shared/protocol.ts';
+import { advanceEffects } from '../shared/effects.ts';
+import type { Rabbit } from '../shared/effects.ts';
 import { requestHandler } from './requests.ts';
 
 const root = resolve('dist');
 const version = process.env.APP_VERSION || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RENDER_GIT_COMMIT || 'development';
-type Session = { socket: WebSocket; player: Player; token: string; dx: number; dy: number; lastInput: number; alive: boolean; rate: number; rateTime: number; lastAttack: number; lastFire: number; sprint: boolean };
+type Session = { socket: WebSocket; player: Player; token: string; dx: number; dy: number; lastInput: number; alive: boolean; rate: number; rateTime: number; lastAttack: number; lastFire: number; lastSummon:number; sprint: boolean };
+let rabbits:Rabbit[]=[];
 const sessions = new Map<WebSocket, Session>();
 const speeches = new Map<string, Extract<ServerMessage, {type:'speech'}>>();
 // Short lived continuity across reconnects, never an account or a database.
@@ -83,11 +86,11 @@ wss.on('connection', socket => {
       const position = spawn(saved?.player || message.position);
       const skin = [...message.token].reduce((sum,c) => sum+c.charCodeAt(0),0)%6;
       const player: Player = { ...position,id:randomUUID(),name,skin,direction:'down',moving:false,flying:saved?.player.flying ?? false,invisible:name.toLowerCase()==='grabolax',hp:saved?.player.hp ?? 50,maxHp:50 };
-      sessions.set(socket,{socket,player,token:message.token,dx:0,dy:0,lastInput:Date.now(),alive:true,rate:0,rateTime:Date.now(),lastAttack:0,lastFire:0,sprint:false});
+      sessions.set(socket,{socket,player,token:message.token,dx:0,dy:0,lastInput:Date.now(),alive:true,rate:0,rateTime:Date.now(),lastAttack:0,lastFire:0,lastSummon:0,sprint:false});
       remembered.delete(message.token);
       clearTimeout(joinTimeout);
       send(socket,{type:'welcome',id:player.id,version,player});
-      send(socket,{type:'world',players:[...sessions.values()].map(s => s.player)});
+      send(socket,{type:'world',players:[...sessions.values()].map(s => s.player),rabbits});
       for (const speech of speeches.values()) if (speech.expiresAt>Date.now()) send(socket,speech);
       return;
     }
@@ -96,6 +99,11 @@ wss.on('connection', socket => {
     if (message.type === 'input' && Number.isFinite(message.dx) && Number.isFinite(message.dy)) {
       session.dx = Math.max(-1,Math.min(1,message.dx)); session.dy = Math.max(-1,Math.min(1,message.dy));
       session.lastInput = Date.now(); session.sprint=message.sprint===true;
+    }
+    if(message.type==='summon'&&Date.now()-session.lastSummon>=3000){
+      session.lastSummon=Date.now();
+      rabbits=rabbits.filter(r=>r.ownerId!==session.player.id);
+      for(let i=0;i<3;i++)rabbits.push({id:randomUUID(),ownerId:session.player.id,x:session.player.x+(i-1)*10,y:session.player.y+12,expiresAt:Date.now()+8000});
     }
     if (message.type === 'jetpack' && typeof message.flying === 'boolean') session.player.flying=message.flying;
     if (message.type === 'fire' && Date.now()-session.lastFire >= 1200) {
@@ -136,8 +144,9 @@ const tick = setInterval(() => {
     session.player.direction = facing(session.dx,session.dy,session.player.direction);
     Object.assign(session.player,point);
   }
+  rabbits=advanceEffects([...sessions.values()].map(s=>s.player),rabbits,dt,Date.now());
   if (++step%2 === 0) {
-    const message: ServerMessage = {type:'world',players:[...sessions.values()].map(s => s.player)};
+    const message: ServerMessage = {type:'world',players:[...sessions.values()].map(s => s.player),rabbits};
     for (const session of sessions.values()) send(session.socket,message);
   }
 },1000/40);

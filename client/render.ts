@@ -1,3 +1,5 @@
+import { AURA_RADIUS } from '../shared/effects.ts';
+import type { Rabbit } from '../shared/effects.ts';
 import { WORLD, pond, trees } from '../shared/world.ts';
 import type { Player, Point, Direction } from '../shared/world.ts';
 import { characterSheets, treeSprite } from '../assets/sprites.ts';
@@ -39,7 +41,7 @@ export class Renderer {
   width=0; height=0; dpr=1; zoom=2;
   constructor(canvas:HTMLCanvasElement){this.canvas=canvas;this.ctx=canvas.getContext('2d')!;this.resize();window.addEventListener('resize',()=>this.resize());}
   resize(){this.width=innerWidth;this.height=innerHeight;this.dpr=Math.min(devicePixelRatio||1,2);this.zoom=this.width<600?1.6:2;this.canvas.width=Math.round(this.width*this.dpr);this.canvas.height=Math.round(this.height*this.dpr);}
-  draw(players:Player[],self:Player|undefined,time:number,dt:number,speeches:Extract<ServerMessage,{type:'speech'}>[]=[],attacks:Extract<ServerMessage,{type:'attack'}>[]=[],flames:Extract<ServerMessage,{type:'fire'}>[]=[]){
+  draw(players:Player[],self:Player|undefined,time:number,dt:number,speeches:Extract<ServerMessage,{type:'speech'}>[]=[],attacks:Extract<ServerMessage,{type:'attack'}>[]=[],flames:Extract<ServerMessage,{type:'fire'}>[]=[] ,rabbits:Rabbit[]=[]){
     const halfW=this.width/this.zoom/2,halfH=this.height/this.zoom/2;
     const focus=self||{x:640,y:480};
     const targetX=halfW*2>WORLD.width?WORLD.width/2:Math.max(halfW,Math.min(WORLD.width-halfW,focus.x));
@@ -53,6 +55,14 @@ export class Renderer {
     ctx.drawImage(terrain,0,0);
     ctx.fillStyle='#c0d8d0';
     for(let i=0;i<7;i++){const x=pond.x+30+(i*43)%170,y=pond.y+22+(i*29)%110;ctx.globalAlpha=.3+.2*Math.sin(time/1300+i);ctx.fillRect(x,y,9,1);}ctx.globalAlpha=1;
+    for(const p of players)if(p.name.toLowerCase()==='grabolax'){ctx.fillStyle='#9f69c01c';ctx.strokeStyle='#d5a9f099';ctx.lineWidth=1;ctx.beginPath();ctx.arc(p.x,p.y,AURA_RADIUS,0,Math.PI*2);ctx.fill();ctx.stroke();}
+    for(const rabbit of rabbits){
+      const x=Math.round(rabbit.x),y=Math.round(rabbit.y-Math.abs(Math.sin(time/95))*4);
+      ctx.fillStyle='#50624635';ctx.beginPath();ctx.ellipse(x,rabbit.y+3,6,2,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#f8eee3';ctx.fillRect(x-5,y-7,10,7);ctx.fillRect(x-4,y-15,3,9);ctx.fillRect(x+1,y-15,3,9);
+      ctx.fillStyle='#e4acb3';ctx.fillRect(x-3,y-13,1,5);ctx.fillRect(x+2,y-13,1,5);
+      ctx.fillStyle='#40343e';ctx.fillRect(x-3,y-5,1,1);ctx.fillRect(x+2,y-5,1,1);ctx.fillStyle='#e4acb3';ctx.fillRect(x-1,y-3,2,1);
+    }
     const objects=[...trees.map(point=>({kind:'tree' as const,point})),...players.map(player=>({kind:'player' as const,point:player}))].sort((a,b)=>a.point.y-b.point.y);
     for(const object of objects){
       let {x,y}=object.point;
@@ -68,7 +78,8 @@ export class Renderer {
           for(const offset of [-9,8]){const length=8+Math.sin(time/55+offset)*3;ctx.fillStyle='#ff9c38';ctx.fillRect(x+offset-2,y-11,4,length);ctx.fillStyle='#ffe39b';ctx.fillRect(x+offset-1,y-11,2,length*.7);}
         }
         const row:Record<Direction,number>={down:0,left:1,right:2,up:3};
-        const cycle=[1,0,1,2],frame=player.moving?cycle[Math.floor(time/145)%4]:1;
+        const cycle=[2,0,2,1],frame=player.moving?cycle[Math.floor(time/115)%4]:2;
+        if(player.moving&&!player.flying)y-=Math.abs(Math.sin(time/115*Math.PI))*1.5;
         ctx.drawImage(characterSheets[player.skin],frame*16,row[player.direction]*24,16,24,Math.round(x-16),Math.round(y-44),32,48);
         const swing=attacks.find(attack=>attack.playerId===player.id&&attack.expiresAt>Date.now());
         const angles:Record<Direction,number>={right:0,down:Math.PI/2,left:Math.PI,up:-Math.PI/2};

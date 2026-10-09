@@ -22,6 +22,7 @@ let target:Point|undefined,serverVelocity:Point={x:0,y:0}, lastDirection={dx:0,d
 let sprintToggle=false;
 const keys=new Set<string>();let touch={dx:0,dy:0};
 const speeches=new Map<string,Extract<ServerMessage,{type:'speech'}>>();
+let rabbits:import('../shared/effects.ts').Rabbit[]=[];
 const flames=new Map<string,Extract<ServerMessage,{type:'fire'}>>();
 const attacks=new Map<string,Extract<ServerMessage,{type:'attack'}>>();
 type Snapshot={at:number;players:Player[]};const snapshots:Snapshot[]=[];
@@ -50,6 +51,7 @@ function connect(){
       send({type:'ping',time:Date.now()});
     }
     if(message.type==='world'){
+      rabbits=message.rabbits||[];
       const at=performance.now();snapshots.push({at,players:message.players});while(snapshots.length>20)snapshots.shift();
       count.textContent=message.players.length+' ici';
       const own=message.players.find(player=>player.id===self?.id);
@@ -93,10 +95,12 @@ function breatheFire(){if(!modalOpen()&&!terminal)send({type:'fire'});}
 $('fire').addEventListener('click',breatheFire);
 function jetpack(){if(self&&!modalOpen()&&!terminal){self.flying=!self.flying;send({type:'jetpack',flying:self.flying});}}
 $('jetpack').addEventListener('click',jetpack);
+function summon(){if(!modalOpen()&&!terminal)send({type:'summon'});}
+$('summon').addEventListener('click',summon);
 $('sprint').addEventListener('click',()=>{sprintToggle=!sprintToggle;$('sprint').setAttribute('aria-pressed',String(sprintToggle));});
 const movementKeys=new Set(['shift','z','q','s','d','w','a','arrowup','arrowdown','arrowleft','arrowright']);
 const modalOpen=()=>Boolean(document.querySelector('dialog[open]')) || !$('chat-composer').hidden;
-window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(key==='j'&&!event.repeat){event.preventDefault();jetpack();return;}if(key==='f'&&!event.repeat){event.preventDefault();breatheFire();return;}if(key===' '&&!event.repeat){event.preventDefault();attack();return;}if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
+window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(key==='l'&&!event.repeat){event.preventDefault();summon();return;}if(key==='j'&&!event.repeat){event.preventDefault();jetpack();return;}if(key==='f'&&!event.repeat){event.preventDefault();breatheFire();return;}if(key===' '&&!event.repeat){event.preventDefault();attack();return;}if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
 window.addEventListener('keyup',event=>{keys.delete(event.key.toLowerCase());});
 window.addEventListener('blur',stop);
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stop();persist();}else{void checkVersion();if(socket?.readyState===WebSocket.CLOSED)connect();}});
@@ -156,7 +160,7 @@ function animate(time:number){
   for(const [id,speech] of speeches)if(speech.expiresAt<Date.now())speeches.delete(id);
   for(const [id,attack] of attacks)if(attack.expiresAt<Date.now())attacks.delete(id);
   for(const [id,flame] of flames)if(flame.expiresAt<Date.now())flames.delete(id);
-  renderer.draw([...others(time),...(self?[self]:[])],self,time,dt,[...speeches.values()],[...attacks.values()],[...flames.values()]);
+  renderer.draw([...others(time),...(self?[self]:[])],self,time,dt,[...speeches.values()],[...attacks.values()],[...flames.values()],rabbits);
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);

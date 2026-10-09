@@ -102,3 +102,5 @@ Statuts : `queued`, `processing`, `deployed`, `needs_info`, `declined`, `failed`
 Jetpack : J ou le bouton 🚀 active un vol visuel partagé (24 pixels au-dessus du sol, réacteurs animés). Les obstacles restent actifs.
 
 Personnages : sprites CC0 de Fleurman / GrafxKid (Tiny Characters Set), inclus localement. Voir assets/CREDITS.md. Grabolax est invisible pour les autres ; sa silhouette reste visible pour lui-même.
+
+Lapins : L ou 🐇 invoque trois petits lapins (8 secondes, recharge 3 secondes). Ils poursuivent le joueur le plus proche, respectent les obstacles, infligent 10 dégâts au contact puis disparaissent. Aura de Grabolax : rayon 42 pixels, 10 dégâts/seconde aux autres joueurs. À 0 PV, retour au centre avec 50 PV.

@@ -76,6 +76,10 @@ test('two browsers share one world, move, disconnect and rejoin', {timeout:20000
   const after=await wait(bob.socket,m=>m.type==='world'&&m.players.length===2);
   if(after.type==='world')assert.equal(after.players.filter(p=>p.name==='Alice').length,1);
   otherTab.socket.send('{broken');await once(otherTab.socket,'close');
+  const summoner=await join('Summoner',randomUUID(),{x:300,y:480});
+  const summoned=wait(bob.socket,m=>m.type==='world'&&(m.rabbits||[]).filter(r=>r.ownerId===summoner.player.id).length===3);
+  summoner.socket.send(JSON.stringify({type:'summon'}));await summoned;
+  summoner.socket.close();await once(summoner.socket,'close');
   const invisible=await join('Grabolax');assert.equal(invisible.player.invisible,true);
   assert.equal(invisible.player.flying,false);
 });

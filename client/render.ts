@@ -81,8 +81,13 @@ export class Renderer {
       let layout=this.speechLayouts.get(speech.id);
       if(!layout){
         const lines:string[]=[];let line='';
-        for(const char of speech.text.replace(/\s+/g,' ')){
-          if(ctx.measureText(line+char).width>150&&line){lines.push(line.trim());line=char;}else line+=char;
+        for(const word of speech.text.trim().split(/\s+/)){
+          const candidate=line?line+' '+word:word;
+          if(ctx.measureText(candidate).width<=150){line=candidate;continue;}
+          if(line){lines.push(line);line='';}
+          for(const char of word){
+            if(ctx.measureText(line+char).width>150&&line){lines.push(line);line=char;}else line+=char;
+          }
         }
         if(line)lines.push(line.trim());
         const shown=lines.slice(0,12);if(lines.length>12)shown[11]=shown[11].slice(0,-1)+'…';

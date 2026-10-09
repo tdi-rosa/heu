@@ -98,3 +98,7 @@ L’agent édite le JSON du commentaire initial en conservant son enveloppe :
 ~~~~
 
 Statuts : `queued`, `processing`, `deployed`, `needs_info`, `declined`, `failed`. Après un déploiement réussi, `commit` contient le SHA et `reply` le résultat en français. Les mises à jour prennent quelques minutes selon la complexité, le lancement de la tâche et la durée du build ; le délai n’est pas garanti.
+
+Jetpack : J ou le bouton 🚀 active un vol visuel partagé (24 pixels au-dessus du sol, réacteurs animés). Les obstacles restent actifs.
+
+Personnages : sprites CC0 de Fleurman / GrafxKid (Tiny Characters Set), inclus localement. Voir assets/CREDITS.md. Grabolax est invisible pour les autres ; sa silhouette reste visible pour lui-même.

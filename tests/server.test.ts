@@ -37,9 +37,14 @@ test('two browsers share one world, move, disconnect and rejoin', {timeout:20000
     return {socket,token,player:message.player};
   }
   const alice=await join('Alice'),bob=await join('Bob');
+  assert.equal(alice.player.invisible,false);
   const both=await wait(alice.socket,m=>m.type==='world'&&m.players.length===2);
   if(both.type!=='world')throw new Error('No world');assert.deepEqual(both.players.map(p=>p.name).sort(),['Alice','Bob']);
   assert.ok(both.players.every(p=>p.hp===50&&p.maxHp===50));
+  const airborne=wait(bob.socket,m=>m.type==='world'&&m.players.some(p=>p.id===alice.player.id&&p.flying));
+  alice.socket.send(JSON.stringify({type:'jetpack',flying:true}));await airborne;
+  const landed=wait(bob.socket,m=>m.type==='world'&&m.players.some(p=>p.id===alice.player.id&&!p.flying));
+  alice.socket.send(JSON.stringify({type:'jetpack',flying:false}));await landed;
   const fire=wait(bob.socket,m=>m.type==='fire'&&m.playerId===alice.player.id);
   alice.socket.send(JSON.stringify({type:'fire'}));
   const flame=await fire;if(flame.type!=='fire')throw new Error('No flame');
@@ -71,4 +76,6 @@ test('two browsers share one world, move, disconnect and rejoin', {timeout:20000
   const after=await wait(bob.socket,m=>m.type==='world'&&m.players.length===2);
   if(after.type==='world')assert.equal(after.players.filter(p=>p.name==='Alice').length,1);
   otherTab.socket.send('{broken');await once(otherTab.socket,'close');
+  const invisible=await join('Grabolax');assert.equal(invisible.player.invisible,true);
+  assert.equal(invisible.player.flying,false);
 });

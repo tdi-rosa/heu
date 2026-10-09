@@ -1,5 +1,6 @@
-// Original pixel sprites. No external asset requests, proprietary RPG Maker files,
-// or asset licensing dependency. Frames follow the classic 3 × 4 RPG layout.
+// Local CC0 character assets with original sprites as a loading fallback.
+// Frames are normalized to the classic 3 × 4 RPG layout.
+import { rpgCharacters } from './characters.ts';
 import type { Direction } from '../shared/world.ts';
 const coats = ['#cf7757','#658cb0','#9c81b2','#d5aa55','#6f9a82','#be7991'];
 const hairs = ['#67412f','#3d343c','#8a5835','#c8a16b','#343d45','#754f46'];
@@ -30,6 +31,12 @@ export const characterSheets = coats.map((_,skin) => {
   (['down','left','right','up'] as Direction[]).forEach((direction,row) => {
     for(let frame=0;frame<3;frame++) { ctx.save();ctx.translate(frame*16,row*24);character(ctx,skin,direction,frame);ctx.restore(); }
   });
+  const image=new Image();
+  image.onload=()=>{
+    ctx.clearRect(0,0,48,96);
+    [0,1,3,2].forEach((column,row)=>{for(let frame=0;frame<3;frame++){ctx.drawImage(image,column*16,frame*17,16,17,frame*16,row*24+7,16,17);}});
+  };
+  image.src=rpgCharacters[skin];
   return sheet;
 });
 export const treeSprite = (() => {

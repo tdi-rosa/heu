@@ -53,7 +53,9 @@ function connect(){
       const at=performance.now();snapshots.push({at,players:message.players});while(snapshots.length>20)snapshots.shift();
       count.textContent=message.players.length+' ici';
       const own=message.players.find(player=>player.id===self?.id);
-      if(own){
+      if(own && self){
+        self.hp=own.hp;self.maxHp=own.maxHp;self.flying=own.flying;self.invisible=own.invisible;
+        $('jetpack').setAttribute('aria-pressed',String(own.flying));
         target={x:own.x,y:own.y};
         const sample=snapshots.at(-2)?.players.find(player=>player.id===own.id);
         const sampleDt=at-(snapshots.at(-2)?.at||at);
@@ -89,10 +91,12 @@ function attack(){if(!modalOpen()&&!terminal)send({type:'attack'});}
 $('attack').addEventListener('click',attack);
 function breatheFire(){if(!modalOpen()&&!terminal)send({type:'fire'});}
 $('fire').addEventListener('click',breatheFire);
+function jetpack(){if(self&&!modalOpen()&&!terminal){self.flying=!self.flying;send({type:'jetpack',flying:self.flying});}}
+$('jetpack').addEventListener('click',jetpack);
 $('sprint').addEventListener('click',()=>{sprintToggle=!sprintToggle;$('sprint').setAttribute('aria-pressed',String(sprintToggle));});
 const movementKeys=new Set(['shift','z','q','s','d','w','a','arrowup','arrowdown','arrowleft','arrowright']);
 const modalOpen=()=>Boolean(document.querySelector('dialog[open]')) || !$('chat-composer').hidden;
-window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(key==='f'&&!event.repeat){event.preventDefault();breatheFire();return;}if(key===' '&&!event.repeat){event.preventDefault();attack();return;}if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
+window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(key==='j'&&!event.repeat){event.preventDefault();jetpack();return;}if(key==='f'&&!event.repeat){event.preventDefault();breatheFire();return;}if(key===' '&&!event.repeat){event.preventDefault();attack();return;}if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
 window.addEventListener('keyup',event=>{keys.delete(event.key.toLowerCase());});
 window.addEventListener('blur',stop);
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stop();persist();}else{void checkVersion();if(socket?.readyState===WebSocket.CLOSED)connect();}});

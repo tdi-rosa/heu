@@ -55,11 +55,18 @@ export class Renderer {
     for(let i=0;i<7;i++){const x=pond.x+30+(i*43)%170,y=pond.y+22+(i*29)%110;ctx.globalAlpha=.3+.2*Math.sin(time/1300+i);ctx.fillRect(x,y,9,1);}ctx.globalAlpha=1;
     const objects=[...trees.map(point=>({kind:'tree' as const,point})),...players.map(player=>({kind:'player' as const,point:player}))].sort((a,b)=>a.point.y-b.point.y);
     for(const object of objects){
-      const {x,y}=object.point;
+      let {x,y}=object.point;
       if(object.kind==='tree'){ctx.fillStyle='#728e5c50';ctx.beginPath();ctx.ellipse(x+4,y+3,24,7,0,0,Math.PI*2);ctx.fill();ctx.drawImage(treeSprite,Math.round(x-32),Math.round(y-86),64,96);}
       else{
         const player=object.point as Player;
+        if(player.invisible&&player.id!==self?.id)continue;
+        ctx.save();if(player.invisible)ctx.globalAlpha=.25;
         ctx.fillStyle='#50624635';ctx.beginPath();ctx.ellipse(x,y+1,12,4,0,0,Math.PI*2);ctx.fill();
+        if(player.flying){
+          y-=24+Math.sin(time/180)*2;
+          ctx.fillStyle='#586675';ctx.fillRect(x-12,y-27,7,16);ctx.fillRect(x+5,y-27,7,16);
+          for(const offset of [-9,8]){const length=8+Math.sin(time/55+offset)*3;ctx.fillStyle='#ff9c38';ctx.fillRect(x+offset-2,y-11,4,length);ctx.fillStyle='#ffe39b';ctx.fillRect(x+offset-1,y-11,2,length*.7);}
+        }
         const row:Record<Direction,number>={down:0,left:1,right:2,up:3};
         const cycle=[1,0,1,2],frame=player.moving?cycle[Math.floor(time/145)%4]:1;
         ctx.drawImage(characterSheets[player.skin],frame*16,row[player.direction]*24,16,24,Math.round(x-16),Math.round(y-44),32,48);
@@ -78,6 +85,7 @@ export class Renderer {
         ctx.fillStyle='#3c4837';ctx.fillText(player.name,x,y-50.5);
         ctx.fillStyle='#542f36';ctx.fillRect(x-13,y-70,26,3);ctx.fillStyle='#8fc477';ctx.fillRect(x-13,y-70,26*player.hp/player.maxHp,3);
         if(player.id===self?.id){ctx.fillStyle='#f8f9f2';ctx.fillRect(Math.round(x-1),Math.round(y-65),2,2);}
+        ctx.restore();
       }
     }
     // Small deterministic particles keep the same fire effect on every browser.
@@ -85,7 +93,7 @@ export class Renderer {
       const age=Date.now()-flame.createdAt;if(age<0||age>800)continue;
       const angle:Record<Direction,number>={right:0,down:Math.PI/2,left:Math.PI,up:-Math.PI/2};
       const player=players.find(p=>p.id===flame.playerId);
-      ctx.save();ctx.translate(player?.x??flame.x,(player?.y??flame.y)-30);ctx.rotate(angle[flame.direction]);
+      ctx.save();ctx.translate(player?.x??flame.x,(player?.y??flame.y)-30-(player?.flying?24:0));ctx.rotate(angle[flame.direction]);
       const fade=Math.min(1,age/90,(800-age)/160);ctx.globalAlpha=Math.max(0,fade);
       for(let i=0;i<32;i++){
         const born=i*12,life=(age-born)/450;if(life<0||life>1)continue;
@@ -122,7 +130,7 @@ export class Renderer {
         this.speechLayouts.set(speech.id,layout);
       }
       const {lines:shown,width,height}=layout;
-      const x=player.x-width/2,y=player.y-79-height;
+      const x=player.x-width/2,y=player.y-79-height-(player.flying?24:0);
       ctx.fillStyle='#fdfdf7f5';ctx.beginPath();ctx.roundRect(x,y,width,height,7);ctx.fill();
       ctx.beginPath();ctx.moveTo(player.x-4,y+height-1);ctx.lineTo(player.x,y+height+5);ctx.lineTo(player.x+4,y+height-1);ctx.closePath();ctx.fill();
       ctx.fillStyle='#363e32';shown.forEach((l,i)=>ctx.fillText(l,x+8,y+13+i*11));ctx.restore();

@@ -1,7 +1,7 @@
 export const WORLD = { width: 1280, height: 960, tile: 32, speed: 150, radius: 7 };
 export type Direction = 'down' | 'up' | 'left' | 'right';
 export type Point = { x: number; y: number };
-export type Player = Point & { id: string; name: string; skin: number; direction: Direction; moving: boolean; hp: number; maxHp: number };
+export type Player = Point & { id: string; name: string; skin: number; direction: Direction; moving: boolean; hp: number; maxHp: number; flying: boolean; invisible: boolean };
 export const pond = { x: 790, y: 210, width: 220, height: 155 };
 export const trees: Point[] = [
   {x:180,y:185},{x:245,y:160},{x:110,y:350},{x:180,y:420},

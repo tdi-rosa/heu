@@ -4,6 +4,7 @@ export type ClientMessage =
   | { type: 'input'; dx: number; dy: number; sprint?: boolean }
   | { type: 'attack' }
   | { type: 'fire' }
+  | { type: 'jetpack'; flying: boolean }
   | { type: 'ping'; time: number };
 export type ServerMessage =
   | { type: 'fire'; id: string; playerId: string; x: number; y: number; direction: Player['direction']; createdAt: number; expiresAt: number }

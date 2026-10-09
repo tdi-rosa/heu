@@ -82,7 +82,7 @@ wss.on('connection', socket => {
       const saved = remembered.get(message.token);
       const position = spawn(saved?.player || message.position);
       const skin = [...message.token].reduce((sum,c) => sum+c.charCodeAt(0),0)%6;
-      const player: Player = { ...position,id:randomUUID(),name,skin,direction:'down',moving:false,hp:saved?.player.hp ?? 50,maxHp:50 };
+      const player: Player = { ...position,id:randomUUID(),name,skin,direction:'down',moving:false,flying:saved?.player.flying ?? false,invisible:name.toLowerCase()==='grabolax',hp:saved?.player.hp ?? 50,maxHp:50 };
       sessions.set(socket,{socket,player,token:message.token,dx:0,dy:0,lastInput:Date.now(),alive:true,rate:0,rateTime:Date.now(),lastAttack:0,lastFire:0,sprint:false});
       remembered.delete(message.token);
       clearTimeout(joinTimeout);
@@ -97,6 +97,7 @@ wss.on('connection', socket => {
       session.dx = Math.max(-1,Math.min(1,message.dx)); session.dy = Math.max(-1,Math.min(1,message.dy));
       session.lastInput = Date.now(); session.sprint=message.sprint===true;
     }
+    if (message.type === 'jetpack' && typeof message.flying === 'boolean') session.player.flying=message.flying;
     if (message.type === 'fire' && Date.now()-session.lastFire >= 1200) {
       session.lastFire=Date.now();
       const {x,y,direction}=session.player;

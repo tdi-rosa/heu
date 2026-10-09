@@ -13,6 +13,7 @@ test('request delivery, persistent GitHub status, identity, quotas and unavailab
   const transport: typeof fetch = async (input, init) => {
     assert.equal((init?.headers as Record<string, string>).Authorization, 'Bearer server-secret');
     const path = String(input);
+    if (path.endsWith('/pulls/1')) return Response.json({ number: 1 });
     if (init?.method === 'POST') {
       writes++;
       assert.equal(path, 'https://api.github.com/repos/tdi-rosa/heu/issues/1/comments');
@@ -25,10 +26,11 @@ test('request delivery, persistent GitHub status, identity, quotas and unavailab
   const player = (token: string) => token === 'joined-token' ? 'Alice' : undefined;
   const handler = requestHandler({ token: 'server-secret', player, transport });
   const unavailable = requestHandler({ player, transport });
+  const failing = requestHandler({ token: 'private-secret', player, transport: async () => { throw new Error('private-secret'); } });
   const server = createServer(async (req, res) => {
     const path = new URL(req.url!, 'http://localhost').pathname;
-    const selected = path.startsWith('/offline') ? unavailable : handler;
-    if (!await selected(req, res, path.replace('/offline', ''))) res.writeHead(404).end();
+    const selected = path.startsWith('/offline') ? unavailable : path.startsWith('/failing') ? failing : handler;
+    if (!await selected(req, res, path.replace(/^\/(offline|failing)/, ''))) res.writeHead(404).end();
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(() => { server.closeAllConnections(); server.close(); });
@@ -36,6 +38,9 @@ test('request delivery, persistent GitHub status, identity, quotas and unavailab
   const base = `http://127.0.0.1:${address.port}`;
   const headers = { Origin: base, Authorization: 'Bearer joined-token', 'Content-Type': 'application/json' };
   const post = (body: unknown, changed = {}) => fetch(base + '/requests', { method: 'POST', headers: { ...headers, ...changed }, body: JSON.stringify(body) });
+  assert.equal((await (await fetch(base + '/requests/config')).json()).ready, true);
+  const failure = await (await fetch(base + '/failing/requests/config')).json();
+  assert.equal(failure.ready, false); assert.equal(JSON.stringify(failure).includes('private-secret'), false);
   assert.equal((await (await fetch(base + '/offline/requests/config')).json()).ready, false);
   assert.equal((await fetch(base + '/offline/requests', { method: 'POST', headers, body: '{}' })).status, 503);
   assert.equal((await post({ text: 'un banc' }, { Origin: 'https://evil.example' })).status, 403);

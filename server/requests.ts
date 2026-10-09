@@ -4,6 +4,7 @@ import { parseRequestComment, requestComment } from '../shared/requests.ts';
 import type { GameRequest } from '../shared/requests.ts';
 
 const repo = 'tdi-rosa/heu';
+class BridgeError extends Error {}
 type Options = { token?: string; pullRequest?: number; player: (token: string) => string | undefined; transport?: typeof fetch };
 export function requestHandler(options: Options) {
   const transport = options.transport || fetch, pr = options.pullRequest || 1;
@@ -13,20 +14,39 @@ export function requestHandler(options: Options) {
   const cache = new Map<string, { until: number; request: GameRequest }>();
   const sent = new Map<string, { commentId: number; request: GameRequest }>();
   let globalStart = Date.now(), globalCount = 0;
+  let configuration: { until: number; ready: boolean; message: string } | undefined;
   function json(response: ServerResponse, status: number, data: unknown) {
     response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }).end(JSON.stringify(data));
   }
   async function github(path: string, init?: RequestInit) {
     const result = await transport('https://api.github.com/repos/' + repo + path,
       { ...init, headers, signal: AbortSignal.timeout(10000) });
-    if (!result.ok) throw new Error('GitHub unavailable');
+    if (!result.ok) {
+      console.warn('heu GitHub request failed: HTTP ' + result.status);
+      const message = result.status === 401 ? 'La clé GitHub est invalide ou expirée. Vérifiez HEU_GITHUB_TOKEN dans Render.' :
+        result.status === 403 ? 'GitHub refuse l’accès : vérifiez la permission Pull requests « Read and write » et les limites du jeton.' :
+        result.status === 404 ? 'La clé GitHub n’a pas accès au dépôt heu ou à sa boîte de réception.' :
+        'GitHub est momentanément indisponible (HTTP ' + result.status + ').';
+      throw new BridgeError(message);
+    }
     return result.json();
   }
   return async (request: IncomingMessage, response: ServerResponse, path: string): Promise<boolean> => {
     if (path !== '/requests/config' && path !== '/requests' && !/^\/requests\/\d+$/.test(path)) return false;
     if (request.method === 'GET' && path === '/requests/config') {
-      json(response, 200, { ready: Boolean(options.token), message: options.token ? '' :
-        'Le lien avec ChatGPT attend son activation. Votre brouillon reste ici.' }); return true;
+      if (!options.token) {
+        json(response, 200, { ready: false, message: 'Le lien avec ChatGPT attend son activation. Votre brouillon reste ici.' }); return true;
+      }
+      if (!configuration || configuration.until < Date.now()) {
+        try {
+          await github('/pulls/' + pr);
+          configuration = { until: Date.now() + 30000, ready: true, message: '' };
+        } catch (error) {
+          configuration = { until: Date.now() + 10000, ready: false, message:
+            error instanceof BridgeError ? error.message : 'Le serveur ne parvient pas à joindre GitHub. Réessayez dans un instant.' };
+        }
+      }
+      json(response, 200, { ready: configuration.ready, message: configuration.message }); return true;
     }
     if (!options.token) { json(response, 503, { error: 'Le lien avec ChatGPT n’est pas encore activé. Votre demande n’a pas été envoyée.' }); return true; }
     const token = request.headers.authorization?.replace(/^Bearer /, '') || '';
@@ -84,8 +104,12 @@ export function requestHandler(options: Options) {
       if (!Number.isSafeInteger(comment.id)) throw new Error();
       const result = { commentId: comment.id, request: record };
       sent.set(dedupeKey, result); json(response, 201, result);
-    } catch {
-      json(response, 502, { error: 'Impossible de confirmer l’envoi. Votre brouillon est conservé ; vérifiez la boîte avant de réessayer.' });
+    } catch (error) {
+      // Log only a transport code, never headers, token, request text or upstream payload.
+      const code = (error as { cause?: { code?: unknown } })?.cause?.code;
+      if (typeof code === 'string' && /^[A-Z0-9_]+$/.test(code)) console.warn('heu GitHub transport failed: ' + code);
+      json(response, 502, { error: error instanceof BridgeError ?
+        error.message : 'Impossible de joindre GitHub. Votre brouillon est conservé ; vérifiez la boîte avant de réessayer.' });
     }
     return true;
   };

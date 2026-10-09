@@ -1,4 +1,5 @@
 import { Renderer } from './render.ts';
+import { initRequests } from './requests.ts';
 import { newToken } from '../shared/identity.ts';
 import { move, facing, spawn, WORLD } from '../shared/world.ts';
 import type { Player, Point } from '../shared/world.ts';
@@ -78,18 +79,19 @@ form.addEventListener('submit',event=>{
 nickname.addEventListener('input',()=>nickname.setCustomValidity(''));
 rename.addEventListener('click',showJoin);
 const movementKeys=new Set(['z','q','s','d','w','a','arrowup','arrowdown','arrowleft','arrowright']);
-window.addEventListener('keydown',event=>{if(dialog.open)return;const key=event.key.toLowerCase();if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
+const modalOpen=()=>Boolean(document.querySelector('dialog[open]'));
+window.addEventListener('keydown',event=>{if(modalOpen())return;const key=event.key.toLowerCase();if(movementKeys.has(key)){event.preventDefault();keys.add(key);}});
 window.addEventListener('keyup',event=>{keys.delete(event.key.toLowerCase());});
 window.addEventListener('blur',stop);
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stop();persist();}else{void checkVersion();if(socket?.readyState===WebSocket.CLOSED)connect();}});
 window.addEventListener('pagehide',persist);
 const joystick=$('joystick'),stick=$('stick');let pointerId:number|undefined;
-joystick.addEventListener('pointerdown',event=>{if(dialog.open||pointerId!==undefined)return;pointerId=event.pointerId;joystick.setPointerCapture(pointerId);updateStick(event);});
+joystick.addEventListener('pointerdown',event=>{if(modalOpen()||pointerId!==undefined)return;pointerId=event.pointerId;joystick.setPointerCapture(pointerId);updateStick(event);});
 joystick.addEventListener('pointermove',event=>{if(event.pointerId===pointerId)updateStick(event);});
 function updateStick(event:PointerEvent){const bounds=joystick.getBoundingClientRect();let x=event.clientX-bounds.left-bounds.width/2,y=event.clientY-bounds.top-bounds.height/2;const length=Math.hypot(x,y);if(length>36){x=x/length*36;y=y/length*36;}stick.style.transform=`translate(${x}px,${y}px)`;touch={dx:Math.abs(x)<5?0:x/36,dy:Math.abs(y)<5?0:y/36};}
 function releaseStick(event:PointerEvent){if(event.pointerId!==pointerId)return;pointerId=undefined;stick.style.transform='';touch={dx:0,dy:0};}
 joystick.addEventListener('pointerup',releaseStick);joystick.addEventListener('pointercancel',releaseStick);joystick.addEventListener('lostpointercapture',releaseStick);
-function input(){if(dialog.open||document.hidden||terminal)return {dx:0,dy:0};return {
+function input(){if(modalOpen()||document.hidden||terminal)return {dx:0,dy:0};return {
   dx:touch.dx+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('q')||keys.has('a')||keys.has('arrowleft')?1:0),
   dy:touch.dy+(keys.has('s')||keys.has('arrowdown')?1:0)-(keys.has('z')||keys.has('w')||keys.has('arrowup')?1:0)
 };}
@@ -138,4 +140,5 @@ function animate(time:number){
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);
+initRequests({token,stop,storage});
 if(name)connect();else showJoin();

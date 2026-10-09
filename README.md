@@ -37,7 +37,7 @@ tests/      déplacements et session multijoueur réelle
 
 Le fichier `render.yaml` prépare un unique service **Free**, en Europe, connecté à `main`. Aucune variable secrète, base de données ou installation sur les postes des joueurs. Une fois le service lancé, partager son adresse HTTPS avec les amis.
 
-Chaque commit sur `main` déclenche automatiquement le build et le déploiement. Le client utilise le SHA de la version Render pour recharger les pages après une mise à jour, tout en gardant le pseudo et la dernière position dans le navigateur.
+Avec une connexion au fournisseur Git, chaque commit sur `main` peut déclencher le build et le déploiement. Le service actuel a été créé depuis l’URL publique du dépôt : les mises à jour sont donc déclenchées avec le connecteur Render après le commit. Le client utilise le SHA de la version Render pour recharger les pages après une mise à jour, tout en gardant le pseudo et la dernière position dans le navigateur.
 
 Le service gratuit s'endort après 15 minutes sans trafic entrant. Son réveil prend environ une minute. Les messages WebSocket des joueurs le maintiennent actif pendant la partie. Les quotas gratuits de Render s'appliquent ; ne sélectionner aucune offre payante.
 
@@ -68,4 +68,27 @@ Ouvrir `http://localhost:3000`. Après une modification du client, relancer `npm
 
 Les personnages utilisent un atlas de 3 poses × 4 directions inspiré des RPG en vue du dessus. Personnages, arbres et terrain sont originaux, écrits dans ce dépôt, sans ressources propriétaires de RPG Maker. Aucune image ni police n'est chargée depuis un service externe.
 
-Cette version contient uniquement : rejoindre, choisir un pseudo, se déplacer et voir les autres. La carte comporte quelques éléments de décor avec collision. Il n'y a ni chat, ni combat, ni inventaire, ni objectif.
+Cette version permet de rejoindre, choisir un pseudo, se déplacer, voir les autres et proposer une mise à jour avec le bouton « Une idée ? ». La carte comporte quelques éléments de décor avec collision. Il n'y a ni chat, ni combat, ni inventaire, ni objectif.
+
+## Demandes de mises à jour
+
+Le bouton « Une idée ? » ouvre une boîte de dialogue. Le brouillon et la dernière demande sont conservés localement, même après une mise à jour. Le serveur utilise le pseudo de la session active, transmet un commentaire à [la PR de réception](https://github.com/tdi-rosa/heu/pull/1), puis le client consulte le statut toutes les 5 secondes quand la boîte est ouverte. Les commentaires persistent sur GitHub, indépendamment des redémarrages Render. Les demandes et pseudos sont publics.
+
+Une tâche ChatGPT Work intitulée « Demandes du jeu heu » est configurée sur les nouveaux commentaires de cette PR. Elle traite les demandes dans l’ordre, modifie main, teste, déploie le service existant puis met à jour le commentaire original. La branche `request-worker` sert de verrou avec une durée limitée pour éviter des modifications concurrentes. La PR `player-request-inbox` reste ouverte et n’est pas fusionnée. Les éditions de commentaires ne déclenchent pas la tâche.
+
+### Activation unique côté hébergement
+
+Le relais nécessite `HEU_GITHUB_TOKEN` dans les variables d’environnement du service Render. Créer un **jeton personnel à granularité fine**, limité au dépôt `tdi-rosa/heu`, permission **Pull requests: Read and write**, puis le coller uniquement dans le tableau de bord Render → Environment → Add environment variable. Utiliser un jeton personnel de compte humain : le déclencheur ChatGPT accepte les commentaires humains, pas ceux des bots. Le jeton n’est jamais envoyé au client et n’autorise pas le serveur à modifier le code. Renouveler le jeton avant son expiration. Aucun jeton OpenAI/API payante n’est nécessaire pour ce relais.
+
+Sans cette variable, le formulaire explique que l’activation manque et bloque l’envoi ; il ne prétend jamais avoir livré la demande. Avec le jeton, le serveur confirme seulement l’écriture du commentaire, pas le démarrage de la tâche. Le statut « Modification en cours » confirme la prise en charge. La chaîne complète doit être testée après activation. Les limites sont 3 demandes par personnage et 15 demandes au total par heure. Ce sont des limites contre les clics répétés, pas une authentification des joueurs.
+
+L’agent édite le JSON du commentaire initial en conservant son enveloppe :
+
+~~~~text
+[heu-request]
+```json
+{ "schema": 1, "id": "UUID", "name": "Pseudo", "text": "Demande", "status": "queued", "reply": "", "createdAt": "ISO-8601" }
+```
+~~~~
+
+Statuts : `queued`, `processing`, `deployed`, `needs_info`, `declined`, `failed`. Après un déploiement réussi, `commit` contient le SHA et `reply` le résultat en français. Les mises à jour prennent quelques minutes selon la complexité, le lancement de la tâche et la durée du build ; le délai n’est pas garanti.

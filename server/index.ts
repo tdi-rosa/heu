@@ -6,6 +6,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { move, spawn, facing } from '../shared/world.ts';
 import type { Player } from '../shared/world.ts';
 import type { ServerMessage } from '../shared/protocol.ts';
+import { requestHandler } from './requests.ts';
 
 const root = resolve('dist');
 const version = process.env.APP_VERSION || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RENDER_GIT_COMMIT || 'development';
@@ -17,13 +18,17 @@ const send = (socket: WebSocket, message: ServerMessage) => {
   if (socket.readyState === WebSocket.OPEN && socket.bufferedAmount < 65536) socket.send(JSON.stringify(message));
 };
 const mime: Record<string,string> = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml' };
+const handleRequests = requestHandler({ token: process.env.HEU_GITHUB_TOKEN, player: token => {
+  for (const session of sessions.values()) if (session.token === token) return session.player.name;
+} });
 const http = createServer(async (request, response) => {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'same-origin');
   response.setHeader('Cache-Control', 'no-store');
-  if (request.method !== 'GET' && request.method !== 'HEAD') { response.writeHead(405).end(); return; }
   let path: string;
   try { path = decodeURIComponent(new URL(request.url || '/', 'http://localhost').pathname); } catch { response.writeHead(400).end(); return; }
+  if (await handleRequests(request, response, path)) return;
+  if (request.method !== 'GET' && request.method !== 'HEAD') { response.writeHead(405).end(); return; }
   if (path === '/health') { response.writeHead(200, {'Content-Type':'application/json'}).end(JSON.stringify({ok:true,version,players:sessions.size})); return; }
   if (path === '/version') { response.writeHead(200, {'Content-Type':'application/json'}).end(JSON.stringify({version})); return; }
   const file = resolve(root, '.'+(path === '/' ? '/index.html' : path));
